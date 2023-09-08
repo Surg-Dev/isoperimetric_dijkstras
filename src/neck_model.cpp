@@ -185,3 +185,18 @@ void NeckModel::clean_sweepline_vars(){
     neck_ratio_cycle_list.clear();
     neck_ratio_faces_list.clear(); 
 }
+
+std::set<Face>& NeckModel::compute_candidate_cut(){
+  double max_gap = 0;
+  size_t index = 0;
+  for (size_t i = 0; i < neck_ratios_pos_list.size()-1; i++){
+    double start = neck_ratios_pos_list[i];
+    double end = neck_ratios_pos_list[i+1];
+    if (end - start > max_gap){
+      max_gap = end - start;
+      index = i;
+    }
+  }
+  qprint("Cut Index: " + std::to_string(index));
+  return neck_ratio_faces_list[index];
+}

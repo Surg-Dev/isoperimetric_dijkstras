@@ -45,7 +45,8 @@ void myCallback() {
     if (cut_index >= nm->neck_ratio_faces_list.size()){
       cut_index = 0;
     }
-    auto faceset = nm->neck_ratio_faces_list[cut_index];
+    // auto faceset = nm->neck_ratio_faces_list[cut_index];
+    auto faceset = nm->compute_candidate_cut();
     for (Face f : faceset){
       fcolors[f.getIndex()] = {1.0, 0.0, 0.0};
     }
@@ -61,6 +62,9 @@ void myCallback() {
     auto ind = x.second;
     if (ind < psMesh->nVertices()){
       nm->_source = nm->mesh->vertex(ind);
+      std::vector<std::array<double, 3>> vcolors(nm->mesh->nVertices(), {0.0, 1.0, 0.0});
+      vcolors[nm->_source.getIndex()] = {1.0, 0.0, 0.0};
+      psMesh->addVertexColorQuantity("vcolor", vcolors);
     }
   }
 
@@ -105,6 +109,10 @@ int main(int argc, char **argv) {
       nm->geometry->inputVertexPositions, nm->mesh->getFaceVertexList());
   auto perms = polyscopePermutations(*(nm->mesh));
   psMesh->setAllPermutations(perms);
+
+  std::vector<std::array<double, 3>> vcolors(nm->mesh->nVertices(), {0.0, 1.0, 0.0});
+  vcolors[nm->_source.getIndex()] = {1.0, 0.0, 0.0};
+  psMesh->addVertexColorQuantity("vcolor", vcolors)->setEnabled(true);
 
   polyscope::show();
 

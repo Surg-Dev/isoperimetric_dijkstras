@@ -30,6 +30,9 @@ class NeckModel{
         void sweepline_dist_process();
         void clean_sweepline_vars();
 
+        // Helpers
+        std::set<Face>& compute_candidate_cut();
+
         // Mesh Variables
         std::unique_ptr<ManifoldSurfaceMesh> mesh; // The mesh data structure
         std::unique_ptr<VertexPositionGeometry> geometry; // The geometry data structure
