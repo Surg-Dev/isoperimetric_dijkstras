@@ -7,6 +7,7 @@
 #include "polyscope/polyscope.h"
 #include "polyscope/surface_mesh.h"
 #include "polyscope/pick.h"
+#include "polyscope/curve_network.h"
 
 #include "args/args.hxx"
 #include "imgui.h"
@@ -68,6 +69,20 @@ void myCallback() {
     }
   }
 
+  if (ImGui::Button("Show Edge Cycle")){
+    std::vector<std::array<double, 3>> ecolors(nm->mesh->nEdges(), {0.0,0.0,0.0});
+    auto faceSet = nm->compute_candidate_cut();
+    auto edgeSet = nm->determine_cycle_edgeset(faceSet);
+    auto cycle = nm->determine_single_cycle(edgeSet);
+    qprint(std::to_string(cycle.size()));
+    for (Edge e : cycle){
+      ecolors[e.getIndex()] = {1.0, 0.0, 0.0};
+    }
+    auto curve = polyscope::getCurveNetwork("curve");
+    curve->addEdgeColorQuantity("ecolor", ecolors);
+    // psMesh->addEdgeColorQuantity("ecolor", ecolors);
+  }
+
   // ImGui::SliderFloat("param", &param1, 0., 100.);
 }
 
@@ -101,8 +116,11 @@ int main(int argc, char **argv) {
   // Set the callback function
   polyscope::state::userCallback = myCallback;
 
+  //
   NeckModel nmtemp = NeckModel(args::get(inputFilename));
   nm = std::unique_ptr<NeckModel>(std::move(&nmtemp));
+  //TEMP
+  nm->_source = nm->mesh->vertex(17815);
 
   psMesh = polyscope::registerSurfaceMesh(
       polyscope::guessNiceNameFromPath(args::get(inputFilename)),
@@ -114,6 +132,16 @@ int main(int argc, char **argv) {
   vcolors[nm->_source.getIndex()] = {1.0, 0.0, 0.0};
   psMesh->addVertexColorQuantity("vcolor", vcolors)->setEnabled(true);
 
+  // Register Overlay curve network
+  auto nodes = nm->geometry->inputVertexPositions;
+  // Create edge list of vector of array of size 2 of size_t values from nodes indices
+  std::vector<std::array<size_t, 2>> edges;
+  for (Edge e : nm->mesh->edges()){
+    edges.push_back({e.halfedge().vertex().getIndex(), e.halfedge().twin().vertex().getIndex()});
+  }
+  auto curve = polyscope::registerCurveNetwork("curve", nodes, edges);
+  curve->setRadius(0.0002);
+  curve->setEnabled(false);
   polyscope::show();
 
   return EXIT_SUCCESS;

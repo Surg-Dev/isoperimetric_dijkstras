@@ -154,7 +154,7 @@ void NeckModel::sweepline_dist_process(){
 
       // Update neck ratio if improved.
       if (std::max(neck_cut_ratio_potential, neck_ratio) == neck_cut_ratio_potential){
-        qprint("New Neck Ratio: " + std::to_string(neck_cut_ratio_potential));
+        // qprint("New Neck Ratio: " + std::to_string(neck_cut_ratio_potential));
         neck_ratio = neck_cut_ratio_potential;
         neck_ratio_pos = curr_dist;
 
@@ -199,4 +199,84 @@ std::set<Face>& NeckModel::compute_candidate_cut(){
   }
   qprint("Cut Index: " + std::to_string(index));
   return neck_ratio_faces_list[index];
+}
+
+std::set<Edge> NeckModel::determine_cycle_edgeset(std::set<Face> &faces){
+  std::set<Edge> edgeSet;
+  for (Face f : faces){
+    for (Halfedge he : f.adjacentHalfedges()){
+      // Get twin of halfedge
+      Halfedge he_twin = he.twin();
+      // Get twin face
+      Face f_twin = he_twin.face();
+      // If twin face is not in the face set, then this edge is on the boundary cycle.
+      if (faces.find(f_twin) == faces.end()){
+        edgeSet.insert(he.edge());
+      }
+    }
+  }
+  return edgeSet;
+}
+
+std::vector<Edge> NeckModel::determine_single_cycle(std::set<Edge> edgeSet){
+  // Determine the minimum distance edge from the source
+  float min_dist = std::numeric_limits<float>::infinity();
+  Edge min_edge;
+  for (Edge e : edgeSet){
+    // Get vertices from edge
+    Vertex v1 = e.halfedge().vertex();
+    Vertex v2 = e.halfedge().twin().vertex();
+    // Get distances from vertices
+    float d1 = _dists[v1];
+    float d2 = _dists[v2];
+    // Take min and check against current min
+    float min = std::min(d1, d2);
+    if (min < min_dist){
+      min_dist = min;
+      min_edge = e;
+    }
+  }
+
+  // Find adjacent edges until complete cycle
+  std::vector<Edge> cycle;
+  // Insert the min edge as the first edge in the cycle
+  cycle.push_back(min_edge);
+  // Remove min_edge from edgeSet
+  edgeSet.erase(min_edge);
+
+  // Find the next edge in the cycle
+  Edge curr_edge = min_edge;
+  // If we see the min edge we either:
+  // Just left it, or its the last edge to encounter, and use as our stopping point
+  bool saw_min_edge = false;
+
+  while (!saw_min_edge){
+    // If we didnt find the next edge, but saw the min edge, then we are done.
+    bool found_next_edge = false;
+    // We can't guarantee anything about the orientation of the edge, so we need to check both vertices
+    // Effectively, whatever edge we encounter first, we recover the whole cycle in that direction.
+    for (Vertex v : curr_edge.adjacentVertices()){
+      for (Edge e : v.adjacentEdges()){
+        // Mark if it was the min edge
+        if (e==min_edge){
+          saw_min_edge = true;
+        }
+        // If edge is in edgeSet, then it is part of the cycle
+        if (edgeSet.find(e) != edgeSet.end()){
+          cycle.push_back(e);
+          edgeSet.erase(e);
+          found_next_edge = true;
+          // Update curr edge to be e and continue
+          curr_edge = e;
+          break;
+        }
+      }
+      if (found_next_edge) break;
+    }
+
+    if (found_next_edge and saw_min_edge){
+      saw_min_edge = false;
+    }
+  }
+  return cycle;
 }

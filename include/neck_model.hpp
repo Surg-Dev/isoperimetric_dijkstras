@@ -25,13 +25,29 @@ class NeckModel{
         NeckModel(std::string filename);
 
         // Function Defs
+
+        // Compute the shortest path from s to all other vertices and store in _dists, _prev
         void compute_shortest_paths(Vertex s);
+        // Compute the necessary delete edge events and store in _events
         void compute_delete_events();
+        // Compute the neck ratio and store in neck_ratio* containers
         void sweepline_dist_process();
+        // Clean up variables to reuse algorithm w/ different source.
         void clean_sweepline_vars();
+        // Given a set of faces on the wavefront (presumably a cycle), determine the edges on the boundary of the covered faces.
+        std::set<Edge> determine_cycle_edgeset(std::set<Face> &faces);
+        // Given a set of edges which presumably make a cycle, determine the nearest one to source and returned an ordered list of edges.
+        std::vector<Edge> determine_single_cycle(std::set<Edge> edgeSet);
+        // Optimize a cycle by computing shortest distance between random adjacent sectors and taking the most aggressive improvement.
 
         // Helpers
+
+        /** Compute the most ideal candidate cut for out of all computed neck cut ratios
+            This trims the first and last markers for neck cut (as they are usually extremes)
+            then computes the cut which has the furthest distance from the next cut in the list. */
         std::set<Face>& compute_candidate_cut();
+
+        // Vars
 
         // Mesh Variables
         std::unique_ptr<ManifoldSurfaceMesh> mesh; // The mesh data structure
