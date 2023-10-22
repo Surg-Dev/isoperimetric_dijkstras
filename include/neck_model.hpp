@@ -38,7 +38,14 @@ class NeckModel{
         std::set<Edge> determine_cycle_edgeset(std::set<Face> &faces);
         // Given a set of edges which presumably make a cycle, determine the nearest one to source and returned an ordered list of edges.
         std::vector<Edge> determine_single_cycle(std::set<Edge> edgeSet);
-        // Optimize a cycle by computing shortest distance between random adjacent sectors and taking the most aggressive improvement.
+        // Take vector of edges and return oriented vector of halfedges
+        std::vector<Halfedge> orient_cycle(std::vector<Edge> edgeVec);
+        // Optimize an oriented cycle.
+        std::vector<Halfedge> optimize_oriented_cycle(std::vector<Halfedge> oriented_cycle);
+
+        std::vector<Halfedge> optimize_oriented_cycle_single(std::vector<Halfedge> oriented_cycle);
+        
+        std::pair<VertexData<Halfedge>, VertexData<float>> st_dijkstras(Vertex s, Vertex t);
 
         // Helpers
 
@@ -46,6 +53,7 @@ class NeckModel{
             This trims the first and last markers for neck cut (as they are usually extremes)
             then computes the cut which has the furthest distance from the next cut in the list. */
         std::set<Face>& compute_candidate_cut();
+        std::set<Face>&  get_candidate_cut(size_t index);
 
         // Vars
 

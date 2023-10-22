@@ -87,6 +87,7 @@ void NeckModel::sweepline_dist_process(){
     // Clear/init any hold variables.
     clean_sweepline_vars();
     std::set<Halfedge> wavefront;
+    std::set<Edge> processed;
 
     // Queue all halfedges out of source
     for (Halfedge he : _source.outgoingHalfedges()){
@@ -103,6 +104,7 @@ void NeckModel::sweepline_dist_process(){
       ePair event = _events.top();
       float curr_dist = event.first;
       Edge e = event.second;
+      processed.insert(e);
       _events.pop();
       // Track distance covered from last event.
       total_dist_covered += (curr_dist - prev_dist) * wavefront_size;
@@ -114,6 +116,100 @@ void NeckModel::sweepline_dist_process(){
         wavefront.erase(e.halfedge());
         wavefront.erase(e.halfedge().twin());
         wavefront_size -= 2;
+
+        // TODO: clean
+        // Do BFS on either face of the middle edge, and count the two regions contained.
+        // Dont cross any edge in processed.
+        std::set<Face> visited;
+        // Get the two faces
+        Face f1 = e.halfedge().face();
+        Face f2 = e.halfedge().twin().face();
+
+        size_t f1size = 0;
+        size_t f2size = 0;
+
+        std::queue<Face> q;
+        std::queue<Face> q2;
+        q.push(f1);
+        visited.insert(f1);
+        q2.push(f2);
+        visited.insert(f2);
+        f1size++;
+        f2size++;
+
+        Face f1test = q.front();
+        q.pop();
+
+        for (Halfedge he : f1test.adjacentHalfedges()){
+          // Don't allow crossing of processed edges
+          if (processed.find(he.edge()) == processed.end()){
+            Face f_twin = he.twin().face();
+            if (visited.find(f_twin) == visited.end()){
+              q.push(f_twin);
+              visited.insert(f_twin);
+              f1size++;
+            }
+          }
+        }
+
+        Face f2test = q2.front();
+        q2.pop();
+
+        for (Halfedge he : f2test.adjacentHalfedges()){
+          // Don't allow crossing of processed edges
+          if (processed.find(he.edge()) == processed.end()){
+            Face f_twin = he.twin().face();
+            if (visited.find(f_twin) == visited.end()){
+              q2.push(f_twin);
+              visited.insert(f_twin);
+              f2size++;
+            }
+          }
+        }
+
+        if (!q.empty() and !q2.empty()){
+          while (!q.empty()){
+            Face f = q.front();
+            q.pop();
+
+            for (Halfedge he : f.adjacentHalfedges()){
+              // Don't allow crossing of processed edges
+              if (processed.find(he.edge()) == processed.end()){
+                Face f_twin = he.twin().face();
+                if (visited.find(f_twin) == visited.end()){
+                  q.push(f_twin);
+                  visited.insert(f_twin);
+                  f1size++;
+                }
+              }
+            }            
+          }
+          while (!q2.empty()){
+              Face f = q2.front();
+              q2.pop();
+              for (Halfedge he : f.adjacentHalfedges()){
+                // Don't allow crossing of processed edges
+                if (processed.find(he.edge()) == processed.end()){
+                  Face f_twin = he.twin().face();
+                  if (visited.find(f_twin) == visited.end()){
+                    visited.insert(f_twin);
+                    q2.push(f_twin);
+                    f2size++;
+                  }
+                }
+              }
+          } 
+        }
+
+      if (f1size >1 and f2size > 1){
+        std::cout << "Found big cycle? Region 1 size: " << f1size << " Region 2 size: " << f2size << std::endl; 
+      } else{
+        _middle[e] = false;
+      }
+
+
+
+
       } else {
         // Otherwise handle deletion of single edge.
         wavefront_size -= 1;
@@ -189,6 +285,7 @@ void NeckModel::clean_sweepline_vars(){
 std::set<Face>& NeckModel::compute_candidate_cut(){
   double max_gap = 0;
   size_t index = 0;
+  qprint( "Neck Ratios: " + std::to_string(neck_ratios_pos_list.size()));
   for (size_t i = 0; i < neck_ratios_pos_list.size()-1; i++){
     double start = neck_ratios_pos_list[i];
     double end = neck_ratios_pos_list[i+1];
@@ -199,6 +296,10 @@ std::set<Face>& NeckModel::compute_candidate_cut(){
   }
   qprint("Cut Index: " + std::to_string(index));
   return neck_ratio_faces_list[index];
+}
+
+std::set<Face>& NeckModel::get_candidate_cut(size_t cut_index){
+  return neck_ratio_faces_list[cut_index];
 }
 
 std::set<Edge> NeckModel::determine_cycle_edgeset(std::set<Face> &faces){
@@ -279,4 +380,181 @@ std::vector<Edge> NeckModel::determine_single_cycle(std::set<Edge> edgeSet){
     }
   }
   return cycle;
+}
+
+std::vector<Halfedge> NeckModel::orient_cycle(std::vector<Edge> edgeVec){
+  std::vector<Halfedge> heVec;
+  for (size_t i = 0; i < edgeVec.size(); i++){
+    Edge e = edgeVec[i];
+
+    // Get Halfedges
+    Halfedge he1 = e.halfedge();
+    Halfedge he2 = e.halfedge().twin();
+
+    // Get next edge, or if this is the last edge, get the first edge
+    Edge next_e = edgeVec[(i+1)%edgeVec.size()];
+
+    // Get next Halfedges
+    Halfedge next_he1 = next_e.halfedge();
+    Halfedge next_he2 = next_e.halfedge().twin();
+
+    if (he2.vertex() == next_he1.vertex()){
+      heVec.push_back(he1);
+    } else if (he1.vertex() == next_he2.vertex()){
+      heVec.push_back(he2);
+    } else if (he1.vertex() == next_he1.vertex()){
+      heVec.push_back(he2);
+    } else if (he2.vertex() == next_he2.vertex()){
+      heVec.push_back(he1);
+    } else {
+      qprint("Something went wrong in orient_cycle");
+    }
+  }
+  return heVec;
+}
+
+// std::vector<Halfedge> NeckModel::optimize_oriented_cycle(std::vector<Halfedge> oriented_cycle){
+//   // Compute current cycle length
+//   float curr_length = 0;
+//   for (Halfedge he : oriented_cycle){
+//     curr_length += geometry->edgeLengths[he.edge()];
+//   }
+
+//   // Seed rand
+//   srand(time(NULL));
+
+//   // pick a random section of the cycle, 1/6th of the total edges:
+//   size_t start = rand() % oriented_cycle.size();
+//   size_t end = (start + oriented_cycle.size()/6) % oriented_cycle.size();
+
+//   // Pick the next adjecent region, after cycle:
+//   size_t next_start = (end + 1) % oriented_cycle.size();
+//   size_t next_end = (next_start + oriented_cycle.size()/6) % oriented_cycle.size();
+
+//   // For each half edge in the first region, compute dijkstras to each halfedge in the second region
+//   // and find the shortest path. If the shortest path is shorter than the current distance between both halfedges in the cycle, take it
+//   // and update the cycle.
+//   for (size_t i = start; i < end; i++){
+//     if (i == oriented_cycle.size()) i = 0 ;
+//     Halfedge he1 = oriented_cycle[i];
+//     for (size_t j = next_start; j < next_end; j++){
+//       if (j == oriented_cycle.size()) j = 0;
+//       Halfedge he2 = oriented_cycle[j];
+//       // Compute shortest path between he1 and he2
+//       Vertex v1 = he1.vertex();
+//       Vertex v2 = he2.vertex();
+
+//       auto retdata = this->st_dijkstras(v1, v2);
+
+      
+//       // If the distance is shorter than the current distance between he1 and he2, then update the cycle
+//       if (dist < curr_length){
+//         // Get the path from v1 to v2
+//         std::vector<Halfedge> path;
+//         Vertex curr = v2;
+//         while (curr != v1){
+//           Vertex prev = _prev[curr];
+//           Halfedge he = prev.halfedge();
+//           path.push_back(he);
+//           curr = prev;
+//         }
+//         // Update the cycle
+//         std::vector<Halfedge> new_cycle;
+//         for (size_t k = 0; k < i; k++){
+//           new_cycle.push_back(oriented_cycle[k]);
+//         }
+//         for (Halfedge he : path){
+//           new_cycle.push_back(he);
+//         }
+//         for (size_t k = j; k < oriented_cycle.size(); k++){
+//           new_cycle.push_back(oriented_cycle[k]);
+//         }
+//         oriented_cycle = new_cycle;
+//         // Update the current length
+//         curr_length = dist;
+//       }
+//     }
+//   }
+// }
+
+
+std::vector<Halfedge> NeckModel::optimize_oriented_cycle_single(std::vector<Halfedge> oriented_cycle){
+  // Compute legnth of cycle
+  float curr_length = 0;
+  for (Halfedge he : oriented_cycle){
+    curr_length += geometry->edgeLengths[he.edge()];
+  }
+
+  // Pick a random edge
+  size_t start = rand() % oriented_cycle.size();
+  // Pick the edge 1/6th distance, looping
+  size_t end = (start + oriented_cycle.size()/6) % oriented_cycle.size();
+
+  // Compute st_dijkstras between the two vertices
+  Vertex v1 = oriented_cycle[start].vertex();
+  Vertex v2 = oriented_cycle[end].vertex();
+  auto retdata = this->st_dijkstras(v1, v2);
+
+  // Check to see if the distance is shorter than the current distance between the two vertices
+  auto l_dists = retdata.second;
+  auto l_prev = retdata.first;
+  float dist = l_dists[v2];
+  float cur_dist = 0;
+
+  size_t i = start;
+  while (i != end){
+    cur_dist += geometry->edgeLengths[oriented_cycle[i].edge()];
+    i++;
+    if (i == oriented_cycle.size()) i = 0;
+  }
+
+  if (dist < cur_dist){
+    // Get the sequence of half edges from v1 to v2 and update the cycle
+    std::vector<Edge> path;
+    Vertex curr = v2;
+    while (curr != v1){
+      // Halfedge that points *to* curr
+      Halfedge prev = l_prev[curr];
+      path.push_back(prev.edge());
+      curr = prev.vertex();
+    }
+    std::reverse(path.begin(), path.end());
+    size_t j = end;
+    while (j != start){
+      path.push_back(oriented_cycle[j].edge());
+      j++;
+      if (j == oriented_cycle.size()) j = 0;
+    }
+    return orient_cycle(path);
+  }
+  return oriented_cycle;
+}
+
+std::pair<VertexData<Halfedge>, VertexData<float>> NeckModel::st_dijkstras(Vertex s, Vertex t){
+  VertexData<Halfedge> prev(*mesh);
+  VertexData<float> dists(*mesh);
+  std::priority_queue<vPair, std::vector<vPair>, std::greater<vPair>> pq;
+  pq.push(std::make_pair(0.0, s));
+  for (Vertex v : mesh->vertices()){
+    dists[v] = std::numeric_limits<float>::infinity();
+  }
+  dists[s] = 0.0;
+  while (!pq.empty()){
+    auto curr = pq.top().second;
+    if (curr == t){
+      break;
+    }
+    pq.pop();
+
+    for (Halfedge he : curr.outgoingHalfedges()){
+      Vertex v = he.twin().vertex();
+      float alt = dists[curr] + geometry->edgeLengths[he.edge()];
+      if (alt < dists[v]){
+        dists[v] = alt;
+        prev[v] = he;
+        pq.push(std::make_pair(alt, v));
+      }
+    }
+  }
+  return std::make_pair(prev, dists);
 }

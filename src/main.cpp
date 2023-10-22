@@ -26,34 +26,43 @@ using namespace geometrycentral::surface;
 // std::unique_ptr<ManifoldSurfaceMesh> mesh;
 // std::unique_ptr<VertexPositionGeometry> geometry;
 std::unique_ptr<NeckModel> nm;
+std::vector<Halfedge> best_cycle;
+std::set<Face> best_cut;
 
 // Polyscope visualization handle, to quickly add data to the surface
 polyscope::SurfaceMesh *psMesh = NULL;
 
 // Some algorithm parameters
-float param1 = 42.0;
+int param1 = 10;
+int cutidxs = 0;
 
-size_t cut_index = 0;
+int cut_index = 0;
 
 void myCallback() {
 
   if (ImGui::Button("do work")) {
     nm->sweepline_dist_process();
+    cutidxs = nm->neck_ratio_faces_list.size();
   }
 
   if (ImGui::Button("Visualize")){
     std::vector<std::array<double, 3>> fcolors(nm->mesh->nFaces(), {.5,.5,.5});
-    if (cut_index >= nm->neck_ratio_faces_list.size()){
-      cut_index = 0;
-    }
     // auto faceset = nm->neck_ratio_faces_list[cut_index];
-    auto faceset = nm->compute_candidate_cut();
-    for (Face f : faceset){
+    best_cut = nm->compute_candidate_cut();
+    for (Face f : best_cut){
+      fcolors[f.getIndex()] = {1.0, 0.0, 0.0};
+    }
+    psMesh->addFaceColorQuantity("fcolor", fcolors);
+  }
+
+  if (ImGui::Button("Visualize Selected")){
+    std::vector<std::array<double, 3>> fcolors(nm->mesh->nFaces(), {.5,.5,.5});
+    best_cut = nm->get_candidate_cut(cut_index);
+    for (Face f : best_cut){
       fcolors[f.getIndex()] = {1.0, 0.0, 0.0};
     }
     psMesh->addFaceColorQuantity("fcolor", fcolors);
 
-    cut_index++;
   }
 
   if (ImGui::Button("Set Source")){
@@ -71,19 +80,45 @@ void myCallback() {
 
   if (ImGui::Button("Show Edge Cycle")){
     std::vector<std::array<double, 3>> ecolors(nm->mesh->nEdges(), {0.0,0.0,0.0});
-    auto faceSet = nm->compute_candidate_cut();
-    auto edgeSet = nm->determine_cycle_edgeset(faceSet);
+    // auto faceSet = nm->compute_candidate_cut();
+    auto edgeSet = nm->determine_cycle_edgeset(best_cut);
     auto cycle = nm->determine_single_cycle(edgeSet);
-    qprint(std::to_string(cycle.size()));
-    for (Edge e : cycle){
-      ecolors[e.getIndex()] = {1.0, 0.0, 0.0};
+    best_cycle = nm->orient_cycle(cycle);
+    std::cout << std::endl;
+    for (Halfedge e : best_cycle){
+      ecolors[e.edge().getIndex()] = {1.0, 0.0, 0.0};
     }
     auto curve = polyscope::getCurveNetwork("curve");
     curve->addEdgeColorQuantity("ecolor", ecolors);
     // psMesh->addEdgeColorQuantity("ecolor", ecolors);
   }
 
-  // ImGui::SliderFloat("param", &param1, 0., 100.);
+  if (ImGui::Button("Improve")){
+    std::vector<std::array<double, 3>> ecolors(nm->mesh->nEdges(), {0.0,0.0,0.0});
+    for (size_t i = 0; i < param1; i++){
+        best_cycle = nm->optimize_oriented_cycle_single(best_cycle);
+    }
+    // std::cout << std::endl;
+    for (Halfedge e : best_cycle){
+      ecolors[e.edge().getIndex()] = {1.0, 0.0, 0.0};
+    }
+    auto curve = polyscope::getCurveNetwork("curve");
+    curve->addEdgeColorQuantity("ecolor", ecolors);
+    // psMesh->addEdgeColorQuantity("ecolor", ecolors);
+  }
+  ImGui::SliderInt("Improve Iters", &param1, 1, 40);
+  ImGui::SliderInt("Cut Index", &cut_index, 0, cutidxs);
+
+  if (ImGui::Button("Generate Middle Edges")){
+    std::vector<std::array<double, 3>> ecolors(nm->mesh->nEdges(), {0.0,0.0,0.0});
+    for (Edge e : nm->mesh->edges()){
+      if (nm->_middle[e]){
+        ecolors[e.getIndex()] = {1.0, 0.0, 1.0};
+      }
+    }
+    auto curve = polyscope::getCurveNetwork("curve");
+    curve->addEdgeColorQuantity("middle", ecolors);
+  }
 }
 
 int main(int argc, char **argv) {
@@ -120,7 +155,7 @@ int main(int argc, char **argv) {
   NeckModel nmtemp = NeckModel(args::get(inputFilename));
   nm = std::unique_ptr<NeckModel>(std::move(&nmtemp));
   //TEMP
-  nm->_source = nm->mesh->vertex(17815);
+  // nm->_source = nm->mesh->vertex(17815);
 
   psMesh = polyscope::registerSurfaceMesh(
       polyscope::guessNiceNameFromPath(args::get(inputFilename)),
