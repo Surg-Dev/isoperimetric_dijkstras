@@ -48,226 +48,256 @@ void NeckModel::compute_shortest_paths(Vertex s){
 }
 
 void NeckModel::compute_delete_events(){
-    // Initialize data structures
-    _middle = EdgeData<bool>(*mesh, false);
-    _visited = EdgeData<bool>(*mesh, false);
-    _events = eventQueue();
+  // Initialize data structures
+  _middle = EdgeData<bool>(*mesh, false);
+  _visited = EdgeData<bool>(*mesh, false);
+  _events = eventQueue();
 
-    // Comute 
-    for (Edge e : mesh->edges()){
-        Vertex v1 = e.halfedge().vertex();
-        Vertex v2 = e.halfedge().twin().vertex();
-        float dist_v1 = _dists[v1];
-        float dist_v2 = _dists[v2];
-        float length = geometry->edgeLengths[e];
-        // "Orient" v1 to be the closer vertex
-        if (dist_v1 > dist_v2){
-            std::swap(v1, v2);
-            std::swap(dist_v1, dist_v2);
-        }
+  // Comute 
+  for (Edge e : mesh->edges()){
+      Vertex v1 = e.halfedge().vertex();
+      Vertex v2 = e.halfedge().twin().vertex();
+      float dist_v1 = _dists[v1];
+      float dist_v2 = _dists[v2];
+      float length = geometry->edgeLengths[e];
+      // "Orient" v1 to be the closer vertex
+      if (dist_v1 > dist_v2){
+          std::swap(v1, v2);
+          std::swap(dist_v1, dist_v2);
+      }
 
-        // If edge points don't follow each other, then the wavefront collapses in the middle of the edge.
-        // The computation is better understood as (len  - (d2 - d1))/2.0 + d2
-        if (_prev[v1] != v2 && _prev[v2] != v1){
-            _events.push(ePair( (dist_v1 + dist_v2 + length)/2, e));
-            _middle[e] = true;
-        }
-        // Otherwise, just push the deletion event when v2 is reached.
-        else if (_prev[v2] == v1){
-            _events.push(ePair(dist_v2, e));
-        }
-        // Something went wrong if we fall down here, but it's probably OK.
-    }
+      // If edge points don't follow each other, then the wavefront collapses in the middle of the edge.
+      // The computation is better understood as (len  - (d2 - d1))/2.0 + d2
+      if (_prev[v1] != v2 && _prev[v2] != v1){
+          _events.push(ePair( (dist_v1 + dist_v2 + length)/2, e));
+          _middle[e] = true;
+      }
+      // Otherwise, just push the deletion event when v2 is reached.
+      else if (_prev[v2] == v1){
+          _events.push(ePair(dist_v2, e));
+      }
+      // Something went wrong if we fall down here, but it's probably OK.
+  }
 }
 
 void NeckModel::sweepline_dist_process(){
-    // Set up dists and events
-    compute_shortest_paths(_source);
-    compute_delete_events();
-    // Clear/init any hold variables.
-    clean_sweepline_vars();
-    std::set<Halfedge> wavefront;
-    std::set<Edge> processed;
+  // Set up dists and events
+  compute_shortest_paths(_source);
+  compute_delete_events();
+  // Clear/init any hold variables.
+  clean_sweepline_vars();
+  std::set<Halfedge> wavefront;
+  std::set<Edge> processed;
 
-    // Queue all halfedges out of source
-    for (Halfedge he : _source.outgoingHalfedges()){
-        wavefront.insert(he);
-        ++wavefront_size;
-    }
+  // Queue all halfedges out of source
+  for (Halfedge he : _source.outgoingHalfedges()){
+      wavefront.insert(he);
+      ++wavefront_size;
+  }
 
-    float curr_dist = 0;
-    float prev_dist = 0;
+  float curr_dist = 0;
+  float prev_dist = 0;
 
-    // Process the wavefront
-    while (wavefront_size > 0){
-      // Get the next event.
-      ePair event = _events.top();
-      float curr_dist = event.first;
-      Edge e = event.second;
+  // Process the wavefront
+  while (wavefront_size > 0){
+    // Get the next event.
+    ePair event = _events.top();
+    float curr_dist = event.first;
+    Edge e = event.second;
+    if (_middle[e] == false){
       processed.insert(e);
-      _events.pop();
-      // Track distance covered from last event.
-      total_dist_covered += (curr_dist - prev_dist) * wavefront_size;
-      prev_dist = curr_dist;
-
-      // If the event is a middle edge, we need to remove both from wavefront.
-      _visited[e] = true;
-      if (_middle[e]){
-        wavefront.erase(e.halfedge());
-        wavefront.erase(e.halfedge().twin());
-        wavefront_size -= 2;
-
-        // TODO: clean
-        // Do BFS on either face of the middle edge, and count the two regions contained.
-        // Dont cross any edge in processed.
-        std::set<Face> visited;
-        // Get the two faces
-        Face f1 = e.halfedge().face();
-        Face f2 = e.halfedge().twin().face();
-
-        size_t f1size = 0;
-        size_t f2size = 0;
-
-        std::queue<Face> q;
-        std::queue<Face> q2;
-        q.push(f1);
-        visited.insert(f1);
-        q2.push(f2);
-        visited.insert(f2);
-        f1size++;
-        f2size++;
-
-        Face f1test = q.front();
-        q.pop();
-
-        for (Halfedge he : f1test.adjacentHalfedges()){
-          // Don't allow crossing of processed edges
-          if (processed.find(he.edge()) == processed.end()){
-            Face f_twin = he.twin().face();
-            if (visited.find(f_twin) == visited.end()){
-              q.push(f_twin);
-              visited.insert(f_twin);
-              f1size++;
-            }
-          }
-        }
-
-        Face f2test = q2.front();
-        q2.pop();
-
-        for (Halfedge he : f2test.adjacentHalfedges()){
-          // Don't allow crossing of processed edges
-          if (processed.find(he.edge()) == processed.end()){
-            Face f_twin = he.twin().face();
-            if (visited.find(f_twin) == visited.end()){
-              q2.push(f_twin);
-              visited.insert(f_twin);
-              f2size++;
-            }
-          }
-        }
-
-        if (!q.empty() and !q2.empty()){
-          while (!q.empty()){
-            Face f = q.front();
-            q.pop();
-
-            for (Halfedge he : f.adjacentHalfedges()){
-              // Don't allow crossing of processed edges
-              if (processed.find(he.edge()) == processed.end()){
-                Face f_twin = he.twin().face();
-                if (visited.find(f_twin) == visited.end()){
-                  q.push(f_twin);
-                  visited.insert(f_twin);
-                  f1size++;
-                }
-              }
-            }            
-          }
-          while (!q2.empty()){
-              Face f = q2.front();
-              q2.pop();
-              for (Halfedge he : f.adjacentHalfedges()){
-                // Don't allow crossing of processed edges
-                if (processed.find(he.edge()) == processed.end()){
-                  Face f_twin = he.twin().face();
-                  if (visited.find(f_twin) == visited.end()){
-                    visited.insert(f_twin);
-                    q2.push(f_twin);
-                    f2size++;
-                  }
-                }
-              }
-          } 
-        }
-
-      if (f1size >1 and f2size > 1){
-        std::cout << "Found big cycle? Region 1 size: " << f1size << " Region 2 size: " << f2size << std::endl; 
-      } else{
-        _middle[e] = false;
-      }
-
-
-
-
-      } else {
-        // Otherwise handle deletion of single edge.
-        wavefront_size -= 1;
-        // We don't know which halfedge might be in the wavefront.
-        wavefront.erase(e.halfedge());
-        wavefront.erase(e.halfedge().twin());
-
-        Vertex v1 = e.halfedge().vertex();
-        Vertex v2 = e.halfedge().twin().vertex();
-        float d1 = _dists[v1];
-        float d2 = _dists[v2];
-
-        // Orient edge calcs so that d1 < d2
-        if (d1 > d2){
-          std::swap(v1, v2);
-          std::swap(d1, d2);
-        }
-
-        // Add new edges to wavefront
-        for (Halfedge he : v2.outgoingHalfedges()){
-          if (!_visited[he.edge()]){
-            wavefront.insert(he);
-            ++wavefront_size;
-          }
-        }
-
-      }
-
-      // If we've reached the end of the wavefront, break now.
-      if (wavefront_size == 0){
-        break;
-      }
-
-      // Compute neck ratio
-      double remaining_dist = (sum_mesh_dist - total_dist_covered);
-      if (remaining_dist < 0) remaining_dist = 0;
-      double neck_cut_ratio_potential = (double)(total_dist_covered >= remaining_dist ? remaining_dist : total_dist_covered) / (double)(wavefront_size*wavefront_size);
-
-      // Update neck ratio if improved.
-      if (std::max(neck_cut_ratio_potential, neck_ratio) == neck_cut_ratio_potential){
-        // qprint("New Neck Ratio: " + std::to_string(neck_cut_ratio_potential));
-        neck_ratio = neck_cut_ratio_potential;
-        neck_ratio_pos = curr_dist;
-
-        std::set<Face> faces;
-        for (auto h : wavefront){
-          faces.insert(h.face());
-          faces.insert(h.twin().face());
-        }
-        neck_ratio_faces_list.push_back(faces);
-
-        // Compute cycle and push back cycle
-        
-        // Push back dist marker
-        neck_ratios_pos_list.push_back(curr_dist);
-      }
     }
-    // 
+
+    _events.pop();
+    // Track distance covered from last event.
+    total_dist_covered += (curr_dist - prev_dist) * wavefront_size;
+    prev_dist = curr_dist;
+
+    // If the event is a middle edge, we need to remove both from wavefront.
+    _visited[e] = true;
+    if (_middle[e]){
+      wavefront.erase(e.halfedge());
+      wavefront.erase(e.halfedge().twin());
+      wavefront_size -= 2;
+
+      // TODO: clean
+      // Do BFS on either face of the middle edge, and count the two regions contained.
+      // Dont cross any edge in processed.
+      std::set<Face> visited;
+      // Get the two faces
+      Face f1 = e.halfedge().face();
+      Face f2 = e.halfedge().twin().face();
+
+      size_t f1size = 0;
+      size_t f2size = 0;
+
+      std::queue<Face> q;
+      std::queue<Face> q2;
+      q.push(f1);
+      visited.insert(f1);
+      q2.push(f2);
+      visited.insert(f2);
+      f1size++;
+      f2size++;
+
+      // Face f1test = q.front();
+      // q.pop();
+
+      // Parallel BFS
+      std::queue<Face>* qptr = &q;
+      size_t* face_size = &f1size;
+      size_t iters = 10;
+
+      while (!qptr->empty()){
+        Face f = qptr->front();
+        qptr->pop();
+        for (Halfedge he : f.adjacentHalfedges()){
+          // Don't allow crossing of processed edges
+          if (processed.find(he.edge()) == processed.end()){
+            Face f_twin = he.twin().face();
+            if (visited.find(f_twin) == visited.end()){
+              qptr->push(f_twin);
+              visited.insert(f_twin);
+              (*face_size)++;
+            }
+          }
+        }
+        iters--;
+        if (iters==0){
+          qptr = (qptr==&q) ? &q2 : &q;
+          face_size = (face_size==&f1size) ? &f2size : &f1size;
+          iters=10;
+        }
+      }
+
+      // for (Halfedge he : f1test.adjacentHalfedges()){
+      //   // Don't allow crossing of processed edges
+      //   if (processed.find(he.edge()) == processed.end()){
+      //     Face f_twin = he.twin().face();
+      //     if (visited.find(f_twin) == visited.end()){
+      //       q.push(f_twin);
+      //       visited.insert(f_twin);
+      //       f1size++;
+      //     }
+      //   }
+      // }
+
+      // Face f2test = q2.front();
+      // q2.pop();
+
+      // for (Halfedge he : f2test.adjacentHalfedges()){
+      //   // Don't allow crossing of processed edges
+      //   if (processed.find(he.edge()) == processed.end()){
+      //     Face f_twin = he.twin().face();
+      //     if (visited.find(f_twin) == visited.end()){
+      //       q2.push(f_twin);
+      //       visited.insert(f_twin);
+      //       f2size++;
+      //     }
+      //   }
+      // }
+
+      // if (!q.empty() and !q2.empty()){
+      //   while (!q.empty()){
+      //     Face f = q.front();
+      //     q.pop();
+
+      //     for (Halfedge he : f.adjacentHalfedges()){
+      //       // Don't allow crossing of processed edges
+      //       if (processed.find(he.edge()) == processed.end()){
+      //         Face f_twin = he.twin().face();
+      //         if (visited.find(f_twin) == visited.end()){
+      //           q.push(f_twin);
+      //           visited.insert(f_twin);
+      //           f1size++;
+      //         }
+      //       }
+      //     }            
+      //   }
+      //   while (!q2.empty()){
+      //       Face f = q2.front();
+      //       q2.pop();
+      //       for (Halfedge he : f.adjacentHalfedges()){
+      //         // Don't allow crossing of processed edges
+      //         if (processed.find(he.edge()) == processed.end()){
+      //           Face f_twin = he.twin().face();
+      //           if (visited.find(f_twin) == visited.end()){
+      //             visited.insert(f_twin);
+      //             q2.push(f_twin);
+      //             f2size++;
+      //           }
+      //         }
+      //       }
+      //   } 
+      // }
+
+    if (std::min(f1size,f2size) > 25){
+      std::cout << "Found big cycle? Region 1 size: " << f1size << " Region 2 size: " << f2size << std::endl; 
+    } else{
+      _middle[e] = false;
+    }
+
+
+
+
+    } else {
+      // Otherwise handle deletion of single edge.
+      wavefront_size -= 1;
+      // We don't know which halfedge might be in the wavefront.
+      wavefront.erase(e.halfedge());
+      wavefront.erase(e.halfedge().twin());
+
+      Vertex v1 = e.halfedge().vertex();
+      Vertex v2 = e.halfedge().twin().vertex();
+      float d1 = _dists[v1];
+      float d2 = _dists[v2];
+
+      // Orient edge calcs so that d1 < d2
+      if (d1 > d2){
+        std::swap(v1, v2);
+        std::swap(d1, d2);
+      }
+
+      // Add new edges to wavefront
+      for (Halfedge he : v2.outgoingHalfedges()){
+        if (!_visited[he.edge()]){
+          wavefront.insert(he);
+          ++wavefront_size;
+        }
+      }
+
+    }
+
+    // If we've reached the end of the wavefront, break now.
+    if (wavefront_size == 0){
+      break;
+    }
+
+    // Compute neck ratio
+    double remaining_dist = (sum_mesh_dist - total_dist_covered);
+    if (remaining_dist < 0) remaining_dist = 0;
+    double neck_cut_ratio_potential = (double)(total_dist_covered >= remaining_dist ? remaining_dist : total_dist_covered) / (double)(wavefront_size*wavefront_size);
+
+    // Update neck ratio if improved.
+    if (std::max(neck_cut_ratio_potential, neck_ratio) == neck_cut_ratio_potential){
+      // qprint("New Neck Ratio: " + std::to_string(neck_cut_ratio_potential));
+      neck_ratio = neck_cut_ratio_potential;
+      neck_ratio_pos = curr_dist;
+
+      std::set<Face> faces;
+      for (auto h : wavefront){
+        faces.insert(h.face());
+        faces.insert(h.twin().face());
+      }
+      neck_ratio_faces_list.push_back(faces);
+
+      // Compute cycle and push back cycle
+      
+      // Push back dist marker
+      neck_ratios_pos_list.push_back(curr_dist);
+    }
+  }
+  // 
     
 }
 
