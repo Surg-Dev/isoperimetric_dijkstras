@@ -104,9 +104,9 @@ void NeckModel::sweepline_dist_process(){
     ePair event = _events.top();
     float curr_dist = event.first;
     Edge e = event.second;
-    if (_middle[e] == false){
+    // if (_middle[e] == false){
       processed.insert(e);
-    }
+    // }
 
     _events.pop();
     // Track distance covered from last event.
@@ -231,7 +231,7 @@ void NeckModel::sweepline_dist_process(){
       //   } 
       // }
 
-    if (std::min(f1size,f2size) > 25){
+    if (std::min(f1size,f2size) > 10){
       std::cout << "Found big cycle? Region 1 size: " << f1size << " Region 2 size: " << f2size << std::endl; 
     } else{
       _middle[e] = false;
