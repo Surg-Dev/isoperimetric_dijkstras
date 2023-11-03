@@ -54,6 +54,7 @@ class NeckModel{
             then computes the cut which has the furthest distance from the next cut in the list. */
         std::set<Face>& compute_candidate_cut();
         std::set<Face>&  get_candidate_cut(size_t index);
+        Edge get_edge(Vertex v1, Vertex v2);
 
         // Vars
 
@@ -86,10 +87,14 @@ class NeckModel{
         std::vector<std::set<Edge>> neck_ratio_cycle_list; // List of edges that make up the cycle at a max neck ratio
         std::vector<std::set<Face>> neck_ratio_faces_list; // List of faces that make up the cycle at a max neck ratio
 
+        bool _restricted_search = true;
+
 };
+
 
 
 // Random Utils
 inline void qprint(std::string printstr){
     std::cout << printstr << std::endl;
 }
+

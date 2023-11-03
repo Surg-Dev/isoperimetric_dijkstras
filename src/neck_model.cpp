@@ -104,8 +104,15 @@ void NeckModel::sweepline_dist_process(){
     ePair event = _events.top();
     float curr_dist = event.first;
     Edge e = event.second;
-    // if (_middle[e] == false){
+    if (_restricted_search){
       processed.insert(e);
+    } else{
+      if (_middle[e] == false){
+        processed.insert(e);
+      }
+    }
+    // if (_middle[e] == false){
+      
     // }
 
     _events.pop();
@@ -230,8 +237,12 @@ void NeckModel::sweepline_dist_process(){
       //       }
       //   } 
       // }
+    int min_size = 10;
+    if (!_restricted_search){
+      min_size = 1000;
+    }
 
-    if (std::min(f1size,f2size) > 10){
+    if (std::min(f1size,f2size) > min_size){
       std::cout << "Found big cycle? Region 1 size: " << f1size << " Region 2 size: " << f2size << std::endl; 
     } else{
       _middle[e] = false;
@@ -587,4 +598,13 @@ std::pair<VertexData<Halfedge>, VertexData<float>> NeckModel::st_dijkstras(Verte
     }
   }
   return std::make_pair(prev, dists);
+}
+
+Edge NeckModel::get_edge(Vertex v1, Vertex v2){
+  for (Halfedge e : v1.outgoingHalfedges()){
+    if (e.twin().vertex() == v2){
+      return e.edge();
+    }
+  }
+  return Edge();
 }

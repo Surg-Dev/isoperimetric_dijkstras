@@ -78,6 +78,52 @@ void myCallback() {
     }
   }
 
+  if (ImGui::Button("Get Dijkstra Cyc from Edge")){
+    auto x = polyscope::pick::getSelection();
+    polyscope::Structure * strc = x.first;
+    
+    // auto ind = x.second;
+    // std::cout << strc->typeName() << " " << ind << std::endl;
+    // std::cout << nm->mesh->nEdges() << std::endl;
+    // std::cout << nm->mesh->nVertices() << std::endl;
+    // std::cout << psMesh->nEdges() << std::endl;
+    // std::cout << psMesh->nVertices() << std::endl;
+    // std::cout << psMesh->vertexDataSize << " " << psMesh->edgeDataSize << " " << psMesh->faceDataSize << " " << psMesh->halfedgeDataSize << std::endl;
+    auto ind = x.second- (psMesh->vertexDataSize + psMesh->edgeDataSize + psMesh->faceDataSize);
+    // if (ind < psMesh->nEdges()){
+      auto e = nm->mesh->halfedge(ind).edge();
+      // auto e = nm->mesh->edge(ind);
+      auto v1 = e.halfedge().vertex();
+      auto v2 = e.halfedge().twin().vertex();
+
+      Vertex curr = v1;
+
+      std::vector<std::array<double, 3>> ecolors(nm->mesh->nEdges(), {0.0,0.0,0.0});
+      ecolors[ e.getIndex() ] = {1.0, 0.0, 0.0};
+      while(curr != nm->_source){
+        auto prev = nm->_prev[curr];
+
+        e = nm->get_edge(prev, curr);
+
+        ecolors[e.getIndex()] = {1.0, 0.0, 0.0};
+        curr = nm->_prev[curr];
+      }
+      curr = v2;
+      while(curr != nm->_source){
+        auto prev = nm->_prev[curr];
+
+        e = nm->get_edge(prev, curr);
+
+        ecolors[e.getIndex()] = {1.0, 0.0, 0.0};
+        curr = nm->_prev[curr];
+      }
+      auto curve = polyscope::getCurveNetwork("curve");
+      curve->addEdgeColorQuantity("cycle", ecolors);
+    // }
+  }
+
+  if (ImGui::Checkbox("Restricted Search", &nm->_restricted_search)){}
+
   if (ImGui::Button("Show Edge Cycle")){
     std::vector<std::array<double, 3>> ecolors(nm->mesh->nEdges(), {0.0,0.0,0.0});
     // auto faceSet = nm->compute_candidate_cut();
@@ -155,7 +201,8 @@ int main(int argc, char **argv) {
   NeckModel nmtemp = NeckModel(args::get(inputFilename));
   nm = std::unique_ptr<NeckModel>(std::move(&nmtemp));
   //TEMP
-  nm->_source = nm->mesh->vertex(17815);
+  // nm->_source = nm->mesh->vertex(17815);
+  nm->_source = nm->mesh->vertex(4788);
 
   psMesh = polyscope::registerSurfaceMesh(
       polyscope::guessNiceNameFromPath(args::get(inputFilename)),
