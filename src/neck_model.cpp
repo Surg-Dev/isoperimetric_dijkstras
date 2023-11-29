@@ -9,6 +9,7 @@ NeckModel::NeckModel(std::string filename){
     std::tie(mesh, geometry) = readManifoldSurfaceMesh(filename);
     _source = mesh->vertex(0);
     geometry->requireVertexTangentBasis();
+    geometry->requireFaceAreas();
 
     for (Edge e : mesh->edges()){
         sum_mesh_dist += geometry->edgeLengths[e];
@@ -51,6 +52,7 @@ void NeckModel::compute_delete_events(){
   // Initialize data structures
   _middle = EdgeData<bool>(*mesh, false);
   _visited = EdgeData<bool>(*mesh, false);
+  
   _events = eventQueue();
 
   // Comute 
@@ -86,6 +88,9 @@ void NeckModel::sweepline_dist_process(){
   compute_delete_events();
   // Clear/init any hold variables.
   clean_sweepline_vars();
+  _middle_area = EdgeData<double>(*mesh, 0.0);
+  _middle_faces = EdgeData<size_t>(*mesh, 0);
+  _middle_color = EdgeData<bool>(*mesh, false);
   std::set<Halfedge> wavefront;
   std::set<Edge> processed;
 
@@ -123,6 +128,7 @@ void NeckModel::sweepline_dist_process(){
     // If the event is a middle edge, we need to remove both from wavefront.
     _visited[e] = true;
     if (_middle[e]){
+      _middle_color[e] = true;
       wavefront.erase(e.halfedge());
       wavefront.erase(e.halfedge().twin());
       wavefront_size -= 2;
@@ -137,6 +143,9 @@ void NeckModel::sweepline_dist_process(){
 
       size_t f1size = 0;
       size_t f2size = 0;
+
+      double f1area = 0.0;
+      double f2area = 0.0;
 
       std::queue<Face> q;
       std::queue<Face> q2;
@@ -153,11 +162,13 @@ void NeckModel::sweepline_dist_process(){
       // Parallel BFS
       std::queue<Face>* qptr = &q;
       size_t* face_size = &f1size;
+      double* area_covered = &f1area;
       size_t iters = 10;
 
       while (!qptr->empty()){
         Face f = qptr->front();
         qptr->pop();
+        (*area_covered)+=geometry->faceAreas[f];
         for (Halfedge he : f.adjacentHalfedges()){
           // Don't allow crossing of processed edges
           if (processed.find(he.edge()) == processed.end()){
@@ -173,6 +184,7 @@ void NeckModel::sweepline_dist_process(){
         if (iters==0){
           qptr = (qptr==&q) ? &q2 : &q;
           face_size = (face_size==&f1size) ? &f2size : &f1size;
+          area_covered = (face_size==&f1size) ? &f2area : &f1area;
           iters=10;
         }
       }
@@ -243,9 +255,10 @@ void NeckModel::sweepline_dist_process(){
     }
 
     if (std::min(f1size,f2size) > min_size){
-      std::cout << "Found big cycle? Region 1 size: " << f1size << " Region 2 size: " << f2size << std::endl; 
+      // std::cout << "Found big cycle? Region 1 size: " << f1size << " Region 2 size: " << f2size << std::endl;
+      _middle_area[e] = std::min(f1area,f2area);
     } else{
-      _middle[e] = false;
+      _middle_color[e] = false;
     }
 
 
@@ -320,7 +333,7 @@ void NeckModel::clean_sweepline_vars(){
     neck_ratios_pos_list.clear();
     neck_ratio_vertices_list.clear();
     neck_ratio_cycle_list.clear();
-    neck_ratio_faces_list.clear(); 
+    neck_ratio_faces_list.clear();
 }
 
 std::set<Face>& NeckModel::compute_candidate_cut(){
@@ -607,4 +620,70 @@ Edge NeckModel::get_edge(Vertex v1, Vertex v2){
     }
   }
   return Edge();
+}
+
+void NeckModel::do_everything(){
+  //Later... get set of vertices to run restricted search on.
+  // Run the restricted search to get a series of edges
+  _restricted_search = true;
+  sweepline_dist_process();
+  std::vector<Edge> candidate_edges;
+
+  for (Edge e : mesh->edges()){
+    if (_middle_color[e]){
+      candidate_edges.push_back(e);
+    }
+  }
+   std::cout << "Number of Good Edges: " << candidate_edges.size() << std::endl;
+
+  // for (Edge e : candidate_edges){
+  //   std::cout << _middle_area[e] << std::endl;
+  // }
+
+  // For each "good" edge, run the unrestricted search and find a maximal loop which maximizes A/L^2
+  std::vector<std::set<Edge>> cycles;
+  _restricted_search = false;
+  for (Edge e : candidate_edges){
+    _source = e.firstVertex();
+    sweepline_dist_process();
+    double max_ratio = 0;
+    Edge candidate_cycle_edge;
+    for (Edge e : mesh->edges()){
+      if (!_middle_color[e]) continue;
+
+      double length = _dists[e.firstVertex()] + _dists[e.secondVertex()] + geometry->edgeLengths[e];
+      double area = _middle_area[e];
+      double ratio = area/(length*length);
+      if (ratio > max_ratio){
+        max_ratio = ratio;
+        candidate_cycle_edge = e;
+      }
+    }
+    std::cout << "Candidate Cycle Edge: " << candidate_cycle_edge << std::endl;
+    std::set<Edge> cycle;
+    cycle.insert(candidate_cycle_edge);
+    Vertex u = candidate_cycle_edge.firstVertex();
+    while (u != _source){
+      Vertex v = _prev[u];
+      for (Halfedge he : u.outgoingHalfedges()){
+        if (he.tipVertex() == v){
+          cycle.insert(he.edge());
+        }
+      }
+      u = v;
+    }
+    u = candidate_cycle_edge.secondVertex();
+    while (u != _source){
+      Vertex v = _prev[u];
+      cycle.insert(get_edge(u,v));
+      u = v;
+    }
+    std::cout << "Cycle Size: " << cycle.size() << std::endl;
+    cycles.push_back(cycle);
+    // break;
+
+  }
+  std::cout << "Made cycles: " << cycles.size() << std::endl;
+  good_cycles = cycles;
+  // Return the set of maximal loops for each good edge.
 }

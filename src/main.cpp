@@ -38,6 +38,9 @@ int cutidxs = 0;
 
 int cut_index = 0;
 
+int cycles_made = 0;
+int cycle_sel = 0;
+
 void myCallback() {
 
   if (ImGui::Button("do work")) {
@@ -158,13 +161,29 @@ void myCallback() {
   if (ImGui::Button("Generate Middle Edges")){
     std::vector<std::array<double, 3>> ecolors(nm->mesh->nEdges(), {0.0,0.0,0.0});
     for (Edge e : nm->mesh->edges()){
-      if (nm->_middle[e]){
+      if (nm->_middle_color[e]){
         ecolors[e.getIndex()] = {1.0, 0.0, 1.0};
       }
     }
     auto curve = polyscope::getCurveNetwork("curve");
     curve->addEdgeColorQuantity("middle", ecolors);
   }
+  if (ImGui::Button("Full Scan")){
+    nm->do_everything();
+    cycles_made = nm->good_cycles.size();
+
+  }
+
+  if (ImGui::Button("Visualize Good Cycle")){
+    std::vector<std::array<double, 3>> ecolors(nm->mesh->nEdges(), {0.0,0.0,0.0});
+    for (Edge e : nm->good_cycles[cycle_sel]){
+      ecolors[e.getIndex()] = {0.0,0.0,1.0};
+      std::cout << e <<std::endl;
+    }
+    auto curve = polyscope::getCurveNetwork("curve");
+    curve->addEdgeColorQuantity("good_cycle", ecolors);
+  }
+  ImGui::SliderInt("Cycle View", &cycle_sel, 0, cycles_made);
 }
 
 int main(int argc, char **argv) {
@@ -201,8 +220,8 @@ int main(int argc, char **argv) {
   NeckModel nmtemp = NeckModel(args::get(inputFilename));
   nm = std::unique_ptr<NeckModel>(std::move(&nmtemp));
   //TEMP
-  // nm->_source = nm->mesh->vertex(17815);
-  nm->_source = nm->mesh->vertex(4788);
+  nm->_source = nm->mesh->vertex(17815);
+  // nm->_source = nm->mesh->vertex(4788);
 
   psMesh = polyscope::registerSurfaceMesh(
       polyscope::guessNiceNameFromPath(args::get(inputFilename)),

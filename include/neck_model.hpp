@@ -47,6 +47,8 @@ class NeckModel{
         
         std::pair<VertexData<Halfedge>, VertexData<float>> st_dijkstras(Vertex s, Vertex t);
 
+        void do_everything();
+
         // Helpers
 
         /** Compute the most ideal candidate cut for out of all computed neck cut ratios
@@ -72,7 +74,10 @@ class NeckModel{
 
         // Delete Events
         EdgeData<bool> _middle; // Edge dict of where wavefront collapses in an edge
+        EdgeData<bool> _middle_color; 
         EdgeData<bool> _visited; // Edge dict of whether an edge has been visited
+        EdgeData<double> _middle_area; // An attribute to handle the internal area covered by a middle edge.
+        EdgeData<size_t> _middle_faces;
         eventQueue _events; // Total dict of events to process edges
 
         // Neck Ratio Values
@@ -86,6 +91,8 @@ class NeckModel{
         std::vector<std::set<Vertex>> neck_ratio_vertices_list; // List of vertices that make up the cycle at a max neck ratio
         std::vector<std::set<Edge>> neck_ratio_cycle_list; // List of edges that make up the cycle at a max neck ratio
         std::vector<std::set<Face>> neck_ratio_faces_list; // List of faces that make up the cycle at a max neck ratio
+
+        std::vector<std::set<Edge>> good_cycles;
 
         bool _restricted_search = true;
 
