@@ -1,4 +1,5 @@
 #include "neck_model.hpp"
+#include "utils.hpp"
 
 using namespace geometrycentral;
 using namespace geometrycentral::surface;
@@ -6,6 +7,7 @@ using namespace geometrycentral::surface;
 
 // Constructors
 NeckModel::NeckModel(std::string filename){
+    prints("Making Model");
     std::tie(mesh, geometry) = readManifoldSurfaceMesh(filename);
     _source = mesh->vertex(0);
     geometry->requireVertexTangentBasis();
@@ -634,7 +636,7 @@ void NeckModel::do_everything(){
       candidate_edges.push_back(e);
     }
   }
-   std::cout << "Number of Good Edges: " << candidate_edges.size() << std::endl;
+  prints("Number of good edges:", candidate_edges.size());
 
   // for (Edge e : candidate_edges){
   //   std::cout << _middle_area[e] << std::endl;
@@ -659,7 +661,8 @@ void NeckModel::do_everything(){
         candidate_cycle_edge = e;
       }
     }
-    std::cout << "Candidate Cycle Edge: " << candidate_cycle_edge << std::endl;
+    prints("Candidate Cycle Edge:", candidate_cycle_edge);
+
     std::set<Edge> cycle;
     cycle.insert(candidate_cycle_edge);
     Vertex u = candidate_cycle_edge.firstVertex();
@@ -678,12 +681,12 @@ void NeckModel::do_everything(){
       cycle.insert(get_edge(u,v));
       u = v;
     }
-    std::cout << "Cycle Size: " << cycle.size() << std::endl;
+    prints("Cycle Size:", cycle.size());
     cycles.push_back(cycle);
     // break;
 
   }
-  std::cout << "Made cycles: " << cycles.size() << std::endl;
+  prints("Made Cycles:", cycles.size());
   good_cycles = cycles;
   // Return the set of maximal loops for each good edge.
 }

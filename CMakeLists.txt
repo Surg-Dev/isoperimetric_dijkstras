@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10.0)
 
-project(gc_polyscope_example)
+project(isoperimetric_dijkstras)
 message("WOW ${CMAKE_CURRENT_SOURCE_DIR}")
 
 ### Configure output locations
@@ -69,13 +69,14 @@ add_subdirectory(deps/polyscope)
 set(SRCS 
   src/main.cpp
   src/neck_model.cpp
+  src/utils.cpp
 	# add any other source files here
 )
 
 
 # To change the name of your executable, change "gc_project" in the lines below to whatever you want
-add_executable(gc_project "${SRCS}")
-target_include_directories(gc_project PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include/")
+add_executable(iso_dij "${SRCS}")
+target_include_directories(iso_dij PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include/")
 # add the args.hxx project which we use for command line args
-target_include_directories(gc_project PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/deps/polyscope/deps/args")
-target_link_libraries(gc_project geometry-central polyscope)
+target_include_directories(iso_dij PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/deps/polyscope/deps/args")
+target_link_libraries(iso_dij geometry-central polyscope)

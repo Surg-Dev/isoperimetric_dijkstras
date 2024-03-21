@@ -13,6 +13,7 @@
 #include "imgui.h"
 
 #include "neck_model.hpp"
+#include "utils.hpp"
 
 #include <set>
 #include <queue>
@@ -178,7 +179,7 @@ void myCallback() {
     std::vector<std::array<double, 3>> ecolors(nm->mesh->nEdges(), {0.0,0.0,0.0});
     for (Edge e : nm->good_cycles[cycle_sel]){
       ecolors[e.getIndex()] = {0.0,0.0,1.0};
-      std::cout << e <<std::endl;
+      prints(e);
     }
     auto curve = polyscope::getCurveNetwork("curve");
     curve->addEdgeColorQuantity("good_cycle", ecolors);
