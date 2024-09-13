@@ -67,6 +67,7 @@ class NeckModel{
 
         // Wavefront Init Variables
         Vertex _source; // Source vertex to run wavefront from
+        Vertex _anti_source;
 
         // Shortest Path Props
         VertexData<float> _dists; //Vertex Dict of shortest path dists from _source
