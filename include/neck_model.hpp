@@ -46,6 +46,7 @@ class NeckModel{
         std::vector<Halfedge> optimize_oriented_cycle_single(std::vector<Halfedge> oriented_cycle);
         
         std::pair<VertexData<Halfedge>, VertexData<float>> st_dijkstras(Vertex s, Vertex t);
+        std::pair<VertexData<Halfedge>, VertexData<float>> sssp(Vertex s);
 
         void do_everything();
 

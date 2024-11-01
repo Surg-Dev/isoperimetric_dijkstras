@@ -615,6 +615,32 @@ std::pair<VertexData<Halfedge>, VertexData<float>> NeckModel::st_dijkstras(Verte
   return std::make_pair(prev, dists);
 }
 
+std::pair<VertexData<Halfedge>, VertexData<float>> NeckModel::sssp(Vertex s){
+  VertexData<Halfedge> prev(*mesh);
+  VertexData<float> dists(*mesh);
+  std::priority_queue<vPair, std::vector<vPair>, std::greater<vPair>> pq;
+  pq.push(std::make_pair(0.0, s));
+  for (Vertex v : mesh->vertices()){
+    dists[v] = std::numeric_limits<float>::infinity();
+  }
+  dists[s] = 0.0;
+  while (!pq.empty()){
+    auto curr = pq.top().second;
+    pq.pop();
+
+    for (Halfedge he : curr.outgoingHalfedges()){
+      Vertex v = he.twin().vertex();
+      float alt = dists[curr] + geometry->edgeLengths[he.edge()];
+      if (alt < dists[v]){
+        dists[v] = alt;
+        prev[v] = he;
+        pq.push(std::make_pair(alt, v));
+      }
+    }
+  }
+  return std::make_pair(prev, dists);
+}
+
 Edge NeckModel::get_edge(Vertex v1, Vertex v2){
   for (Halfedge e : v1.outgoingHalfedges()){
     if (e.twin().vertex() == v2){

@@ -185,6 +185,84 @@ void myCallback() {
   //   curve->addEdgeColorQuantity("good_cycle", ecolors);
   // }
   // ImGui::SliderInt("Cycle View", &cycle_sel, 0, cycles_made);
+    if (ImGui::Button("Find Leaders")){
+      auto path = nm->sssp(nm->_source);
+      auto prev = path.first;
+      auto dists = path.second;
+
+      // Find all local candidates
+      std::vector<std::pair<float, Vertex>> candidates;
+
+      for (Vertex v : nm->mesh->vertices()){
+          bool is_candidate = true;
+          for (Vertex u : v.adjacentVertices()) {
+            if (dists[v] < dists[u]){
+              is_candidate = false;
+              break;
+            }
+          }
+          if (is_candidate){
+            candidates.push_back({dists[v],v});
+          }
+      }
+      std::cout << "# of Candidates/Verts " << candidates.size() << "/" << nm->mesh->nVertices() << std::endl;
+
+      // Sort candidates by distance
+      struct{
+        bool operator()(std::pair<float, Vertex> a, std::pair<float, Vertex> b) const {return a.first > b.first;}
+      } pair_ge;
+
+      std::sort(candidates.begin(), candidates.end(), pair_ge);
+      for (size_t i = 0; i < candidates.size(); i++){
+        std::cout << candidates[i].first << ", " << candidates[i].second << std::endl;
+      }
+
+      // Remove All Candidates within r-hops
+      int r = 20;
+      typedef std::pair<int, Vertex> VHop;
+      for (size_t i = 0; i < candidates.size(); i++){
+        std::queue<VHop> q;
+        std::unordered_set<Vertex> visited;
+        Vertex s = candidates[i].second;
+        q.push({0,s});
+        visited.insert(s);
+
+        while (!q.empty()){
+          auto hop  = q.front().first;
+          auto curr = q.front().second;
+          q.pop();
+          if (hop + 1 == r){
+            continue;
+          }
+          auto it = candidates.begin();
+          for (; it < candidates.end(); it++){
+              if ((*it).second == curr && curr != s){
+                candidates.erase(it);
+                break;
+              }
+          }
+
+          for (Vertex v :  curr.adjacentVertices()) {
+            int rp = hop + 1;
+            if (visited.find(v) == visited.end()){
+              visited.insert(v);
+              q.push({rp, v});
+            }
+          }
+        }
+      }
+
+      std::cout << "# of Candidates Post Trim " << candidates.size() << std::endl;
+      // Mark vertices on structure
+      std::vector<std::array<double, 3>> vcolors(nm->mesh->nVertices(), {0.0,0.0,0.0});
+
+      for (size_t i = 0; i < candidates.size(); i++){
+        vcolors[candidates[i].second.getIndex()] = {1.0, 0.0, 0.0};
+      }
+      auto curve = polyscope::getCurveNetwork("curve");
+      curve->addNodeColorQuantity("leaders", vcolors);
+
+    }
 
     if (ImGui::Button("Salient Line")){
       auto path = nm->st_dijkstras(nm->_source, nm->_anti_source);
@@ -356,7 +434,7 @@ int main(int argc, char **argv) {
   NeckModel nmtemp = NeckModel(args::get(inputFilename));
   nm = std::unique_ptr<NeckModel>(std::move(&nmtemp));
   //TEMP
-  nm->_source = nm->mesh->vertex(21497);
+  nm->_source = nm->mesh->vertex(17815);
   nm->_anti_source = nm->mesh->vertex(5687);
   // toe: 5687
   // finger: 21497
@@ -371,7 +449,7 @@ int main(int argc, char **argv) {
 
   std::vector<std::array<double, 3>> vcolors(nm->mesh->nVertices(), {0.0, 1.0, 0.0});
   vcolors[nm->_source.getIndex()] = {1.0, 0.0, 0.0};
-  psMesh->addVertexColorQuantity("vcolor", vcolors)->setEnabled(true);
+  psMesh->addVertexColorQuantity("vcolor", vcolors)->setEnabled(false);
 
   // Register Overlay curve network
   auto nodes = nm->geometry->inputVertexPositions;
