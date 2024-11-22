@@ -185,6 +185,62 @@ void myCallback() {
   //   curve->addEdgeColorQuantity("good_cycle", ecolors);
   // }
   // ImGui::SliderInt("Cycle View", &cycle_sel, 0, cycles_made);
+
+    if (ImGui::Button("Final Stretch")){
+      // Pick a random source vertex: X
+      int ridx = std::rand() % nm->mesh->nVertices();
+      Vertex X = nm->mesh->vertex(ridx);
+
+      // Run SSSP from X, Select the furthest vertex from X, Y
+      auto sssp_X = nm->sssp_report_furthest(X);
+      vPair Y = sssp_X.second;
+
+      // Run SSSP from Y, Select the furthest vertex from Y, Z
+      auto sssp_Y = nm->sssp_report_furthest(Y.second);
+      vPair Z = sssp_Y.second;
+
+      // Run SSSP from Z
+      auto sssp_Z = nm->sssp_report_furthest(Z.second);
+      vPair antinode = sssp_Z.second; // This should match Y
+      
+      std::vector<std::array<double, 3>> vcolors(nm->mesh->nVertices(), {0.0,0.0,0.0});
+
+      vcolors[X.getIndex()]        = {1.0, 1.0, 0.0};
+      vcolors[Y.second.getIndex()] = {1.0, 0.0, 0.0};
+      vcolors[Z.second.getIndex()] = {0.0, 1.0, 0.0};
+      vcolors[antinode.second.getIndex()] = {0.0, 1.0, 1.0};
+      std::cout << "X: " << "0.0" << " " << X << std::endl;
+      std::cout << "Y: " << Y.first << " " << Y.second << std::endl;
+      std::cout << "Z: " << Z.first << " " << Z.second << std::endl;
+      std::cout << "A: " << antinode.first << " " << antinode.second << std::endl;
+      auto curve = polyscope::getCurveNetwork("curve");
+      curve->addNodeColorQuantity("leaders", vcolors);
+
+      // Find candidate points with r-leaders, report
+
+      // from Y-Z, run the salient line bottle neck algorithm
+      auto he_path = nm->get_he_path(sssp_Y.first, Y.second, Z.second);
+      auto cycles  = nm->get_cycles_from_path(he_path);
+
+      std::vector<std::array<double, 3>> ecolors(nm->mesh->nEdges(), {0.0,0.0,0.0});
+
+      for (auto he : he_path){
+        Edge e = he.edge();
+        ecolors[e.getIndex()] = {1.0, 0.0, 1.0};
+      }
+
+      for (auto he_cycle : cycles) {
+        for (auto he : he_cycle) {
+          ecolors[he.edge().getIndex()] = {1.0, 0.0, 0.0};
+        }
+      }
+
+      curve->addEdgeColorQuantity("path", ecolors);
+
+
+      // Report best cycles
+    }
+
     if (ImGui::Button("Find Leaders")){
       auto path = nm->sssp(nm->_source);
       auto prev = path.first;

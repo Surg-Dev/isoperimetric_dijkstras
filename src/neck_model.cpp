@@ -586,7 +586,7 @@ std::vector<Halfedge> NeckModel::optimize_oriented_cycle_single(std::vector<Half
   return oriented_cycle;
 }
 
-std::pair<VertexData<Halfedge>, VertexData<float>> NeckModel::st_dijkstras(Vertex s, Vertex t){
+sssp_t NeckModel::st_dijkstras(Vertex s, Vertex t){
   VertexData<Halfedge> prev(*mesh);
   VertexData<float> dists(*mesh);
   std::priority_queue<vPair, std::vector<vPair>, std::greater<vPair>> pq;
@@ -615,7 +615,7 @@ std::pair<VertexData<Halfedge>, VertexData<float>> NeckModel::st_dijkstras(Verte
   return std::make_pair(prev, dists);
 }
 
-std::pair<VertexData<Halfedge>, VertexData<float>> NeckModel::sssp(Vertex s){
+sssp_t NeckModel::sssp(Vertex s){
   VertexData<Halfedge> prev(*mesh);
   VertexData<float> dists(*mesh);
   std::priority_queue<vPair, std::vector<vPair>, std::greater<vPair>> pq;
@@ -716,3 +716,142 @@ void NeckModel::do_everything(){
   good_cycles = cycles;
   // Return the set of maximal loops for each good edge.
 }
+
+
+std::pair<sssp_t, vPair> NeckModel::sssp_report_furthest(Vertex s){
+  VertexData<Halfedge> prev(*mesh);
+  VertexData<float> dists(*mesh);
+  vPair max_vert = {0.0, Vertex()};
+  std::priority_queue<vPair, std::vector<vPair>, std::greater<vPair>> pq;
+  pq.push(std::make_pair(0.0, s));
+  for (Vertex v : mesh->vertices()){
+    dists[v] = std::numeric_limits<float>::infinity();
+  }
+  dists[s] = 0.0;
+  while (!pq.empty()){
+    // Give me the furthest vertex!
+    if (pq.top().first > max_vert.first) {
+      max_vert = pq.top();
+    }
+    auto curr = pq.top().second;
+    pq.pop();
+
+    for (Halfedge he : curr.outgoingHalfedges()){
+      Vertex v = he.twin().vertex();
+      float alt = dists[curr] + geometry->edgeLengths[he.edge()];
+      if (alt < dists[v]){
+        dists[v] = alt;
+        prev[v] = he;
+        pq.push(std::make_pair(alt, v));
+      }
+    }
+  }
+  return std::make_pair(std::make_pair(prev, dists), max_vert);
+}
+
+std::vector<Halfedge> NeckModel::get_he_path(sssp_t sssp, Vertex s, Vertex t){
+  auto prev = sssp.first;
+  Vertex v = s;
+  Vertex cur = t;
+
+  std::vector<Halfedge> he_path;
+
+  while (cur != v){
+    Halfedge he = prev[cur];
+    he_path.push_back(he);
+    cur = he.tailVertex();
+  }
+  return he_path;
+}
+
+std::vector<std::vector<Halfedge>> NeckModel::get_cycles_from_path(std::vector<Halfedge> he_path){
+  Vertex s = he_path.at(0).tailVertex();
+  Vertex t = he_path.at(he_path.size() - 1).tipVertex();
+  std::vector<std::vector<Halfedge>> cycles;
+  for (size_t index = 0; index < he_path.size() - 1 ; index ++){
+      size_t midpt = index;
+      Halfedge he_mid = he_path[midpt];
+      Halfedge he_pred = he_path[midpt+1];
+
+      Vertex a = he_mid.tailVertex();
+
+      std::set<Halfedge> left, right;
+      int side = 0;
+      for (Halfedge he : a.outgoingHalfedges()){
+        if (he == he_mid || he == he_pred.twin()){
+          side = !side;
+          continue;
+        }
+        if (side){
+          left.insert(he);
+        } else {
+          right.insert(he);
+        }
+      }
+      // run st dijkstra's but ban any node on the path, and return halfedges on the side you started with
+
+      // make a banned set
+      // add all nodes on the o.g. path to it
+      std::set<Vertex> banned_crossing;
+      for (auto he : he_path){
+        banned_crossing.insert(he.tipVertex());
+        banned_crossing.insert(s);
+      }
+      
+      // pick a side, enqueue all outgoing verts
+      VertexData<Halfedge> prev_c(*mesh);
+      VertexData<float> dists_c(*mesh, std::numeric_limits<float>::infinity());
+      std::priority_queue<vPair, std::vector<vPair>, std::greater<vPair>> pq;
+      for (auto he : left){
+        float len = geometry->edgeLengths[he.edge()];
+        Vertex vert = he.tipVertex();
+        pq.push(std::make_pair(len, vert));
+        dists_c[vert] = len;
+      }
+      // run dijksta's until it reaches the same vertex again, banning the same side's twin hedges.
+      while (!pq.empty()){
+        auto curr = pq.top().second;
+        if (curr == a){
+          break;
+        }
+        pq.pop();
+
+        for (Halfedge he : curr.outgoingHalfedges()){
+          // don't allow instant return.
+          if (left.find(he.twin()) != left.end()){
+            continue;
+          }
+          Vertex v = he.twin().vertex();
+          if (v != a && banned_crossing.find(v) != banned_crossing.end()){
+            continue; 
+          }
+          float newdist = dists_c[curr] + geometry->edgeLengths[he.edge()];
+
+          if (newdist < dists_c[v]) {
+            dists_c[v] = newdist;
+            prev_c[v] = he;
+            pq.push(std::make_pair(newdist, v));
+          }
+        }
+      } //end while
+
+      Vertex cur = a;
+      std::vector<Halfedge> he_cycle;
+      while (true){
+        Halfedge he = prev_c[cur];
+        if (he == Halfedge()){
+          break;
+        }
+        he_cycle.push_back(he);
+        cur = he.tailVertex();
+      }
+      auto fin_edge = get_edge(a, cur);
+      if (fin_edge.halfedge().tipVertex() == a){
+        he_cycle.push_back(fin_edge.halfedge());
+      } else {he_cycle.push_back(fin_edge.halfedge().twin());}
+
+      cycles.push_back(he_cycle);
+    } // end for;
+  return cycles;
+} 
+

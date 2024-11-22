@@ -15,6 +15,9 @@ using namespace geometrycentral::surface;
 typedef std::pair<float, Vertex> vPair;
 typedef std::pair<float, Edge> ePair;
 
+// SSSP pair
+typedef std::pair<VertexData<Halfedge>, VertexData<float>> sssp_t;
+
 // Event Queue
 typedef std::priority_queue<ePair, std::vector<ePair>, std::greater<ePair>> eventQueue;
 
@@ -45,8 +48,17 @@ class NeckModel{
 
         std::vector<Halfedge> optimize_oriented_cycle_single(std::vector<Halfedge> oriented_cycle);
         
-        std::pair<VertexData<Halfedge>, VertexData<float>> st_dijkstras(Vertex s, Vertex t);
-        std::pair<VertexData<Halfedge>, VertexData<float>> sssp(Vertex s);
+        //SSSP Algorithms
+        sssp_t st_dijkstras(Vertex s, Vertex t);
+        sssp_t sssp(Vertex s);
+        std::pair<sssp_t, vPair> sssp_report_furthest(Vertex s);
+
+
+        // Salient Line Algorithm
+
+        // std::vector<Halfedge> find_he_path(sssp_t sssp);
+        std::vector<Halfedge> get_he_path(sssp_t sssp, Vertex s, Vertex t);
+        std::vector<std::vector<Halfedge>> get_cycles_from_path(std::vector<Halfedge> he_path);
 
         void do_everything();
 
