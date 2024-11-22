@@ -211,19 +211,23 @@ void myCallback() {
 
 
       // get len
-      float len = dists[he_path[0].tipVertex()];
-      float test_len = len;
-      size_t index = 0;
-      while (test_len > len /2.0){
-        index++;
-        test_len = dists[he_path[index].tipVertex()]; 
-      }
+      // float len = dists[he_path[0].tipVertex()];
+      // float test_len = len;
+      // size_t index = 0;
+      // while (test_len > len /2.0){
+      //   index++;
+      //   test_len = dists[he_path[index].tipVertex()]; 
+      // }
+
+      std::vector<std::array<double, 3>> ecycle(nm->mesh->nEdges(), {0.0,0.0,0.0});
+
+      for (size_t index = 0; index < he_path.size() - 1 ; index ++){
 
       // // Find cycle at n/2
       // size_t len = he_path.size();
       size_t midpt = index;
 
-      std::cout << "midpt/len: " << midpt << " midpt/ind: " << he_path.size()/2 << std::endl;
+      // std::cout << "midpt/len: " << midpt << " midpt/ind: " << he_path.size()/2 << std::endl;
 
       Halfedge he_mid = he_path[midpt];
       Halfedge he_pred = he_path[midpt+1];
@@ -294,7 +298,7 @@ void myCallback() {
         }
       }
       // recover the cycle from the point
-      std::vector<std::array<double, 3>> ecycle(nm->mesh->nEdges(), {0.0,0.0,0.0});
+      
       cur = a;
 
       std::vector<Halfedge> he_cycle;
@@ -316,9 +320,37 @@ void myCallback() {
         he_cycle.push_back(fin_edge.halfedge());
       } else {he_cycle.push_back(fin_edge.halfedge().twin());}
       ecycle[fin_edge.getIndex()] = {1.0, 0.0, 0.0};
-      curve->addEdgeColorQuantity("cycle", ecycle);
-      std::cout << he_cycle.size() << std::endl;
+      
+      // std::cout << he_cycle.size() << std::endl;
       // Recurse above and below
+
+      // this is gross, but repeat again at a distance l/10
+      // get length of current cycle 
+      // float cycle_len =0.0;
+      // for (Halfedge he : he_cycle){
+      //   cycle_len += nm->geometry->edgeLengths[he.edge()];
+      // }
+      // find new midpoint l/10 down
+      // float start_len = test_len;
+      // while (test_len - start_len < cycle_len/10.0){
+      //   index++;
+      //   start_len = dists[he_path[index].tipVertex()]; 
+      // }
+      // test_len = start_len;
+      // if (test_len < cycle_len){
+      //   brea
+      // }
+      // run again
+      }
+
+      // Update colors
+      float dist = 0.0;
+      for (auto he : he_path) {
+        Edge e = he.edge();
+        ecycle[e.getIndex()] = {1.0, 0.0, 1.0};
+        nm->geometry->edgeLengths[e];
+      }
+      curve->addEdgeColorQuantity("cycle", ecycle);
     }
 }
 
@@ -356,7 +388,7 @@ int main(int argc, char **argv) {
   NeckModel nmtemp = NeckModel(args::get(inputFilename));
   nm = std::unique_ptr<NeckModel>(std::move(&nmtemp));
   //TEMP
-  nm->_source = nm->mesh->vertex(21497);
+  nm->_source = nm->mesh->vertex(17815);
   nm->_anti_source = nm->mesh->vertex(5687);
   // toe: 5687
   // finger: 21497
