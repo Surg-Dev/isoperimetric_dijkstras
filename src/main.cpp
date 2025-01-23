@@ -9,6 +9,7 @@
 #include "polyscope/surface_mesh.h"
 #include "polyscope/pick.h"
 #include "polyscope/curve_network.h"
+#include "polyscope/point_cloud.h"
 
 #include "args/args.hxx"
 #include "imgui.h"
@@ -276,7 +277,9 @@ void myCallback() {
       // }
       // local_min_cycle[5] = true;
       // local_min_cycle[0] = true;
-      local_min_cycle[60] = true;
+      local_min_cycle[152] = true;
+      local_min_cycle[218] = true;
+      local_min_cycle[258] = true;
       std::vector<glm::vec3> output_ve;
       std::vector<std::array<size_t, 2>>   output_ed;
 
@@ -289,19 +292,20 @@ void myCallback() {
       //   }
       // }
 
-
+      int base_count = 0;
       for (int i = 0; i < cycles.size(); i++) {
-        if (local_min_cycle[i]) {
+        // if (local_min_cycle[i]) {
           for (size_t j = 0 ; j < cycles[i].size(); j++) {
             Halfedge he = cycles[i][j];
             Vector3 vertdat = nm->geometry->vertexPositions[he.tailVertex()];
             output_ve.push_back({vertdat.x, vertdat.y, vertdat.z});
             // output_ve.push_back(nm->geometry .tailVertex().getIndex);
             // std::cout << j << ", " << (j+1) % 37 << std::endl;
-            output_ed.push_back({j, (j+1) % cycles[i].size()});
+            output_ed.push_back({base_count + j, base_count +((j+1) % (cycles[i].size()))});
             // ecolors[he.edge().getIndex()] = {1.0, 0.0, 0.0};
           }
-        }
+          base_count += cycles[i].size();
+        // }
       }
       auto curve2 = polyscope::registerCurveNetwork("cyclecurve", output_ve, output_ed);
       curve2->setColor({1.0,0.0,0.0});
@@ -355,7 +359,7 @@ void myCallback() {
       }
 
       // Remove All Candidates within r-hops
-      int r = 20;
+      int r = 5;
       typedef std::pair<int, Vertex> VHop;
       for (size_t i = 0; i < candidates.size(); i++){
         std::queue<VHop> q;
@@ -396,6 +400,17 @@ void myCallback() {
       for (size_t i = 0; i < candidates.size(); i++){
         vcolors[candidates[i].second.getIndex()] = {1.0, 0.0, 0.0};
       }
+
+      std::vector<glm::vec3> pcloud;
+      for (auto x : candidates) {
+        Vector3 vertdat = nm->geometry->vertexPositions[x.second.getIndex()];
+        pcloud.push_back({vertdat.x, vertdat.y, vertdat.z});
+      }
+      Vector3 srcdat = nm->geometry->vertexPositions[nm->_source.getIndex()];
+      pcloud.push_back({srcdat.x, srcdat.y, srcdat.z});
+
+      auto gen_pcloud = polyscope::registerPointCloud("critpts", pcloud);
+
       auto curve = polyscope::getCurveNetwork("curve");
       curve->addNodeColorQuantity("leaders", vcolors);
 
@@ -571,7 +586,7 @@ int main(int argc, char **argv) {
   NeckModel nmtemp = NeckModel(args::get(inputFilename));
   nm = std::unique_ptr<NeckModel>(std::move(&nmtemp));
   //TEMP
-  nm->_source = nm->mesh->vertex(2696);
+  nm->_source = nm->mesh->vertex(17815);
   nm->_anti_source = nm->mesh->vertex(5687);
   // toe: 5687
   // finger: 21497
