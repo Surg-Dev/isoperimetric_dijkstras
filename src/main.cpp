@@ -1,3 +1,4 @@
+
 #include "geometrycentral/surface/manifold_surface_mesh.h"
 #include "geometrycentral/surface/meshio.h"
 #include "geometrycentral/surface/vertex_position_geometry.h"
@@ -19,6 +20,7 @@
 #include <queue>
 #include <algorithm>
 #include <memory>
+#include <chrono>
 
 using namespace geometrycentral;
 using namespace geometrycentral::surface;
@@ -41,6 +43,16 @@ int cut_index = 0;
 
 int cycles_made = 0;
 int cycle_sel = 0;
+
+template <
+    class result_t   = std::chrono::milliseconds,
+    class clock_t    = std::chrono::steady_clock,
+    class duration_t = std::chrono::milliseconds
+>
+auto since(std::chrono::time_point<clock_t, duration_t> const& start)
+{
+    return std::chrono::duration_cast<result_t>(clock_t::now() - start);
+}
 
 void myCallback() {
 
@@ -187,6 +199,7 @@ void myCallback() {
   // ImGui::SliderInt("Cycle View", &cycle_sel, 0, cycles_made);
 
     if (ImGui::Button("Final Stretch")){
+      auto start = std::chrono::steady_clock::now();
       // Pick a random source vertex: X
       int ridx = std::rand() % nm->mesh->nVertices();
       Vertex X = nm->mesh->vertex(ridx);
@@ -226,19 +239,87 @@ void myCallback() {
 
       for (auto he : he_path){
         Edge e = he.edge();
-        ecolors[e.getIndex()] = {1.0, 0.0, 1.0};
+        ecolors[e.getIndex()] = {1.0, 1.0, .12};
       }
+      std::cout << "Elapsed(ms)=" << since(start).count()  << std::endl;
+      std::cout << "V: " << nm->mesh->nVertices() << ", E: " << nm->mesh->nEdges() << ", F: " << nm->mesh->nFaces() << std::endl;
 
-      for (auto he_cycle : cycles) {
-        for (auto he : he_cycle) {
-          ecolors[he.edge().getIndex()] = {1.0, 0.0, 0.0};
-        }
-      }
+      // for (auto he_cycle : cycles) {
+      //   for (auto he : he_cycle) {
+      //     ecolors[he.edge().getIndex()] = {1.0, 0.0, 0.0};
+      //   }
+      // }
 
-      curve->addEdgeColorQuantity("path", ecolors);
+      
 
 
       // Report best cycles
+
+      std::vector<float> cycle_lens;
+
+      for (auto he_cycle : cycles) {
+        float a = 0.0;
+        for (auto he : he_cycle) {
+          a += nm->geometry->edgeLengths[he.edge()];
+        }
+        cycle_lens.push_back(a);
+      }
+      
+      // std::vector<std::pair<float,std::vector<Halfedge>>> cycle_pairs;
+
+      std::vector<bool> local_min_cycle(cycles.size());
+
+      // for (int i = 1; i < cycles.size()-1; i++) {
+      //   if (cycle_lens[i] >= cycle_lens[i+1] && cycle_lens[i] < cycle_lens[i-1]) {
+      //     local_min_cycle[i] = true;
+      //   }
+      // }
+      // local_min_cycle[5] = true;
+      // local_min_cycle[0] = true;
+      local_min_cycle[60] = true;
+      std::vector<glm::vec3> output_ve;
+      std::vector<std::array<size_t, 2>>   output_ed;
+
+
+      // for (int i =0; i < cycles.size(); i++) {
+      //   if (local_min_cycle[i]){
+      //     for (auto he : cycles[i]){
+      //       ecolors[he.edge().getIndex()] = {1.0,0.0,0.0};
+      //     }
+      //   }
+      // }
+
+
+      for (int i = 0; i < cycles.size(); i++) {
+        if (local_min_cycle[i]) {
+          for (size_t j = 0 ; j < cycles[i].size(); j++) {
+            Halfedge he = cycles[i][j];
+            Vector3 vertdat = nm->geometry->vertexPositions[he.tailVertex()];
+            output_ve.push_back({vertdat.x, vertdat.y, vertdat.z});
+            // output_ve.push_back(nm->geometry .tailVertex().getIndex);
+            // std::cout << j << ", " << (j+1) % 37 << std::endl;
+            output_ed.push_back({j, (j+1) % cycles[i].size()});
+            // ecolors[he.edge().getIndex()] = {1.0, 0.0, 0.0};
+          }
+        }
+      }
+      auto curve2 = polyscope::registerCurveNetwork("cyclecurve", output_ve, output_ed);
+      curve2->setColor({1.0,0.0,0.0});
+      // std::cout << output_ve.size() << std::endl;
+      // std::cout << output_ed.size() << std::endl;
+
+
+      // for (auto a : local_min_cycle) {
+      //   std::cout << a << ", ";
+      // }
+      // std::cout << std::endl;
+      curve->addEdgeColorQuantity("path", ecolors);
+
+      
+
+      // fo
+
+      // auto curve2 = polyscope::registerCurveNetwork("output_curve", )
     }
 
     if (ImGui::Button("Find Leaders")){
@@ -348,14 +429,14 @@ void myCallback() {
       float len = dists[he_path[0].tipVertex()];
       float test_len = len;
       size_t index = 0;
-      while (test_len > len /2.0){
+      while (test_len > len /6.0){
         index++;
         test_len = dists[he_path[index].tipVertex()]; 
       }
 
       // // Find cycle at n/2
       // size_t len = he_path.size();
-      size_t midpt = index;
+      size_t midpt = index+3;
 
       std::cout << "midpt/len: " << midpt << " midpt/ind: " << he_path.size()/2 << std::endl;
 
@@ -490,13 +571,14 @@ int main(int argc, char **argv) {
   NeckModel nmtemp = NeckModel(args::get(inputFilename));
   nm = std::unique_ptr<NeckModel>(std::move(&nmtemp));
   //TEMP
-  nm->_source = nm->mesh->vertex(17815);
+  nm->_source = nm->mesh->vertex(2696);
   nm->_anti_source = nm->mesh->vertex(5687);
   // toe: 5687
   // finger: 21497
   // head: 17815
   // nm->_source = nm->mesh->vertex(4788);
 
+  //teapot tip: 2696
   psMesh = polyscope::registerSurfaceMesh(
       polyscope::guessNiceNameFromPath(args::get(inputFilename)),
       nm->geometry->inputVertexPositions, nm->mesh->getFaceVertexList());
