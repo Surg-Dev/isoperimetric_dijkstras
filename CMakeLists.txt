@@ -1,7 +1,8 @@
 cmake_minimum_required(VERSION 3.10.0)
 
 project(isoperimetric_dijkstras)
-message("WOW ${CMAKE_CURRENT_SOURCE_DIR}")
+# message("WOW ${CMAKE_CURRENT_SOURCE_DIR}")
+# set (GLFW_USE_WAYLAND 1)
 
 ### Configure output locations
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
@@ -70,6 +71,7 @@ set(SRCS
   src/main.cpp
   src/neck_model.cpp
   src/utils.cpp
+  src/benchmarker.cpp
 	# add any other source files here
 )
 

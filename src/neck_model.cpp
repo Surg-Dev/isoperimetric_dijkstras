@@ -22,6 +22,11 @@ NeckModel::NeckModel(std::string filename){
     _visited = EdgeData<bool>(*mesh, false);
 }
 
+// //Dtors
+// NeckModel::~NeckModel(){
+//   return;
+// }
+
 void NeckModel::compute_shortest_paths(Vertex s){
   VertexData<Vertex> prev(*mesh);
   VertexData<float> dists(*mesh);

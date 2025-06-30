@@ -26,6 +26,7 @@ class NeckModel{
         // Constructors
         NeckModel() = default;
         NeckModel(std::string filename);
+        // ~NeckModel();
 
         // Function Defs
 
