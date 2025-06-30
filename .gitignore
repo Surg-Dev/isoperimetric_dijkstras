@@ -2,6 +2,9 @@
 build/
 build_debug/
 
+# Picture Outputs
+db-*/
+
 # Editor and OS things
 .DS_Store
 .vscode
