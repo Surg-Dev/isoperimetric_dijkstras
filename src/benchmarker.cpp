@@ -25,10 +25,10 @@ void finalStretch(std::unique_ptr<NeckModel> & nm) {
       vcolors[Y.second.getIndex()] = {1.0, 0.0, 0.0};
       vcolors[Z.second.getIndex()] = {0.0, 1.0, 0.0};
       vcolors[antinode.second.getIndex()] = {0.0, 1.0, 1.0};
-      std::cout << "X: " << "0.0" << " " << X << std::endl;
-      std::cout << "Y: " << Y.first << " " << Y.second << std::endl;
-      std::cout << "Z: " << Z.first << " " << Z.second << std::endl;
-      std::cout << "A: " << antinode.first << " " << antinode.second << std::endl;
+      // std::cout << "X: " << "0.0" << " " << X << std::endl;
+      // std::cout << "Y: " << Y.first << " " << Y.second << std::endl;
+      // std::cout << "Z: " << Z.first << " " << Z.second << std::endl;
+      // std::cout << "A: " << antinode.first << " " << antinode.second << std::endl;
       auto curve = polyscope::getCurveNetwork("curve");
       curve->addNodeColorQuantity("leaders", vcolors);
 
@@ -56,6 +56,12 @@ void finalStretch(std::unique_ptr<NeckModel> & nm) {
       
 
 
+    // Compute the area between two cycles
+
+    // Just be dumb for now:
+
+    
+
       // Report best cycles
 
       std::vector<float> cycle_lens;
@@ -67,17 +73,55 @@ void finalStretch(std::unique_ptr<NeckModel> & nm) {
         }
         cycle_lens.push_back(a);
       }
+
+      // // For each cycle, start a seed face on the left and right side of the cycle
+      // for (auto he_cycle : cycles){
+      //   auto he = he_cycle[0];
+      //   auto f_left = he.face();
+      //   auto f_right = he.twin().face();
+
+      //   // Convert the cycle of edges into an unordered set of banned crossing edges.
+      //   std::unordered_set<Edge> banned_crossings;
+
+      //   for (auto he : he_cycle) {
+      //     banned_crossings.insert(he.edge());
+      //   }
+
+      //   // Run BFS on the faces, making sure not to cross the cycle
+      //   // For each face, we check the containing halfedges.
+      //   // If the half edge is not in the banned 
+
+
+      // }
       
       // std::vector<std::pair<float,std::vector<Halfedge>>> cycle_pairs;
 
       std::vector<bool> local_min_cycle(cycles.size());
+
+      auto test_cycle = cycles[30];
+      std::vector<std::array<double, 3>> cyclefaces(nm->mesh->nFaces(), {0.0,0.0,0.0});
+
+      for (auto he : test_cycle) {
+        Face f = he.face();
+        cyclefaces[f.getIndex()] = {0.0, 1.0, 0.0};
+      }
+
+      for (auto face : Y.second.adjacentFaces()) {
+        cyclefaces[face.getIndex()] = {1.0, 0.0, 0.0};
+      }
+
+      for (auto face : Z.second.adjacentFaces()) {
+        cyclefaces[face.getIndex()] = {0.0, 0.0, 1.0};
+      }
+      auto surf = polyscope::getSurfaceMesh("human_tri");
+      surf->addFaceColorQuantity("cyclefaces", cyclefaces);
 
       // for (int i = 1; i < cycles.size()-1; i++) {
       //   if (cycle_lens[i] >= cycle_lens[i+1] && cycle_lens[i] < cycle_lens[i-1]) {
       //     local_min_cycle[i] = true;
       //   }
       // }
-      // local_min_cycle[5] = true;
+      local_min_cycle[30] = true;
       // local_min_cycle[0] = true;
       // local_min_cycle[152] = true;
       // local_min_cycle[218] = true;
@@ -96,7 +140,7 @@ void finalStretch(std::unique_ptr<NeckModel> & nm) {
 
       int base_count = 0;
       for (int i = 0; i < cycles.size(); i++) {
-        // if (local_min_cycle[i]) {
+        if (local_min_cycle[i]) {
           for (size_t j = 0 ; j < cycles[i].size(); j++) {
             Halfedge he = cycles[i][j];
             Vector3 vertdat = nm->geometry->vertexPositions[he.tailVertex()];
@@ -107,7 +151,7 @@ void finalStretch(std::unique_ptr<NeckModel> & nm) {
             // ecolors[he.edge().getIndex()] = {1.0, 0.0, 0.0};
           }
           base_count += cycles[i].size();
-        // }
+        }
       }
       auto curve2 = polyscope::registerCurveNetwork("cyclecurve", output_ve, output_ed);
       curve2->setColor({1.0,0.0,0.0});

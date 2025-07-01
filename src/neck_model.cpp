@@ -770,9 +770,15 @@ std::vector<Halfedge> NeckModel::get_he_path(sssp_t sssp, Vertex s, Vertex t){
 }
 
 std::vector<std::vector<Halfedge>> NeckModel::get_cycles_from_path(std::vector<Halfedge> he_path){
+  // First and last vertices of the path
   Vertex s = he_path.at(0).tailVertex();
   Vertex t = he_path.at(he_path.size() - 1).tipVertex();
+
+  // Structure which holds all the cycles
   std::vector<std::vector<Halfedge>> cycles;
+
+  // For each node on the path, find it's cycle
+  // TODO: This is lazy, we can produce recursion instead.
   for (size_t index = 0; index < he_path.size() - 1 ; index ++){
       size_t midpt = index;
       Halfedge he_mid = he_path[midpt];
@@ -802,12 +808,17 @@ std::vector<std::vector<Halfedge>> NeckModel::get_cycles_from_path(std::vector<H
         banned_crossing.insert(he.tipVertex());
         banned_crossing.insert(s);
       }
-      
+      std::set<Halfedge> query_side;
+      if (side == 0){
+        query_side = left;
+      } else {
+        query_side = right;
+      }
       // pick a side, enqueue all outgoing verts
       VertexData<Halfedge> prev_c(*mesh);
       VertexData<float> dists_c(*mesh, std::numeric_limits<float>::infinity());
       std::priority_queue<vPair, std::vector<vPair>, std::greater<vPair>> pq;
-      for (auto he : left){
+      for (auto he : query_side){
         float len = geometry->edgeLengths[he.edge()];
         Vertex vert = he.tipVertex();
         pq.push(std::make_pair(len, vert));
@@ -823,7 +834,7 @@ std::vector<std::vector<Halfedge>> NeckModel::get_cycles_from_path(std::vector<H
 
         for (Halfedge he : curr.outgoingHalfedges()){
           // don't allow instant return.
-          if (left.find(he.twin()) != left.end()){
+          if (query_side.find(he.twin()) != query_side.end()){
             continue;
           }
           Vertex v = he.twin().vertex();
@@ -852,8 +863,8 @@ std::vector<std::vector<Halfedge>> NeckModel::get_cycles_from_path(std::vector<H
       }
       auto fin_edge = get_edge(a, cur);
       if (fin_edge.halfedge().tipVertex() == a){
-        he_cycle.push_back(fin_edge.halfedge());
-      } else {he_cycle.push_back(fin_edge.halfedge().twin());}
+        he_cycle.push_back(fin_edge.halfedge().twin());
+      } else {he_cycle.push_back(fin_edge.halfedge());}
 
       cycles.push_back(he_cycle);
     } // end for;

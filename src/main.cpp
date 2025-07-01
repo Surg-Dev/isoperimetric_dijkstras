@@ -139,36 +139,23 @@ int main(int argc, char **argv) {
 
   // polyscope::CameraIntrinsics camInt = polyscope::CameraIntrinsics::fromFoVDegHorizontalAndVertical(80., 60.);
 
-  for (double angle; angle < 2.0*PI; angle += ((2.0*PI)/8)) {
-    double _X = cos(angle)*3;
-    double _Z = sin(angle)*3;
-    polyscope::view::lookAt(glm::vec3{_X, 1.5, _Z}, glm::vec3{0., 0., 0.});
-    polyscope::screenshot();
-  }
+  // for (double angle; angle < 2.0*PI; angle += ((2.0*PI)/8)) {
+  //   double _X = cos(angle)*3;
+  //   double _Z = sin(angle)*3;
+  //   polyscope::view::lookAt(glm::vec3{_X, 1.5, _Z}, glm::vec3{0., 0., 0.});
+  //   polyscope::screenshot();
+  // }
 
-    for (double angle; angle < 2.0*PI; angle += ((2.0*PI)/8)) {
-    double _X = cos(angle)*3;
-    double _Z = sin(angle)*3;
-    polyscope::view::lookAt(glm::vec3{_X, -1.5, _Z}, glm::vec3{0., 0., 0.});
-    polyscope::screenshot();
-  }
+  //   for (double angle; angle < 2.0*PI; angle += ((2.0*PI)/8)) {
+  //   double _X = cos(angle)*3;
+  //   double _Z = sin(angle)*3;
+  //   polyscope::view::lookAt(glm::vec3{_X, -1.5, _Z}, glm::vec3{0., 0., 0.});
+  //   polyscope::screenshot();
+  // }
 
-  // polyscope::view::lookAt(glm::vec3{3., 3., 0.}, glm::vec3{0., 0., 0.});
-  // polyscope::screenshot();
-  // polyscope::view::lookAt(glm::vec3{3., -3., 0.}, glm::vec3{0., 0., 0.});
-  // polyscope::screenshot();
-  // polyscope::view::lookAt(glm::vec3{-3., 3., 0.}, glm::vec3{0., 0., 0.});
-  // polyscope::screenshot();
-  // polyscope::view::lookAt(glm::vec3{-3., -3., 0.}, glm::vec3{0., 0., 0.});
-  // polyscope::screenshot();
-  // polyscope::view::lookAt(glm::vec3{0., -3., 3.}, glm::vec3{0., 0., 0.});
-  // polyscope::screenshot();
-  // polyscope::view::lookAt(glm::vec3{0., -3., -3}, glm::vec3{0., 0., 0.});
-  // polyscope::screenshot();
-
-  nm.release();
+  polyscope::show();
+  
+  // nm.release();
   // nm = NULL;
-  // polyscope::show();
-
   return EXIT_SUCCESS;
 }
