@@ -201,7 +201,7 @@ int main(int argc, char **argv) {
 
   polyscope::show();
   
-  // nm.release();
-  // nm = NULL;
+  nm.release();
+  nm = NULL;
   return EXIT_SUCCESS;
 }

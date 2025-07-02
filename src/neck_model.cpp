@@ -256,7 +256,7 @@ void NeckModel::sweepline_dist_process(){
       //       }
       //   } 
       // }
-    int min_size = 10;
+    size_t min_size = 10;
     if (!_restricted_search){
       min_size = 1000;
     }
@@ -795,7 +795,7 @@ std::vector<std::vector<Halfedge>> NeckModel::get_cycles_from_path(std::vector<H
             mid_first = true;
           }
           side = !side;
-          std::cout << side << "and: " << he << he_mid << he_pred.twin() << std::endl;
+          // std::cout << side << "and: " << he << he_mid << he_pred.twin() << std::endl;
           continue;
         }
 
@@ -808,7 +808,7 @@ std::vector<std::vector<Halfedge>> NeckModel::get_cycles_from_path(std::vector<H
           left.insert(he);
         }
       }
-      std::cout << "wow" << std::endl;
+      // std::cout << "wow" << std::endl;
       // run st dijkstra's but ban any node on the path, and return halfedges on the side you started with
 
       // make a banned set
