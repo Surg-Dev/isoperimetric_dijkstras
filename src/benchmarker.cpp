@@ -1,6 +1,8 @@
 
 #include "benchmarker.hpp"
 
+
+
 void finalStretch(std::unique_ptr<NeckModel> & nm) {
   auto start = std::chrono::steady_clock::now();
       // Pick a random source vertex: X
@@ -38,6 +40,8 @@ void finalStretch(std::unique_ptr<NeckModel> & nm) {
       auto he_path = nm->get_he_path(sssp_Y.first, Y.second, Z.second);
       auto cycles  = nm->get_cycles_from_path(he_path);
 
+      nm->salient_cyles_output = cycles;
+
       std::vector<std::array<double, 3>> ecolors(nm->mesh->nEdges(), {0.0,0.0,0.0});
 
       for (auto he : he_path){
@@ -53,7 +57,6 @@ void finalStretch(std::unique_ptr<NeckModel> & nm) {
       //   }
       // }
 
-      
 
 
     // Compute the area between two cycles

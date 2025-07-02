@@ -69,6 +69,52 @@ void myCallback() {
     if (ImGui::Button("Apply LookVector")){
       set_look(vec[0], vec[1], vec[2]);
     }
+
+    ImGui::SliderInt("Cycle Select", &cycle_sel, 0, (nm->salient_cyles_output).size());
+
+    if (ImGui::Button("See Cycle")) {
+      // std::cout << cycle_sel << std::endl;
+
+      
+      auto test_cycle = nm->salient_cyles_output[cycle_sel];
+
+      // for (auto he : test_cycle) {
+      //   std::cout << "(" << he.tipVertex() << " -> " << he.tailVertex() << ") -> ";
+      // }
+      // std::cout << std::endl;
+      std::vector<std::array<double, 3>> cyclefaces(nm->mesh->nFaces(), {0.0,0.0,0.0});
+
+      for (auto he : test_cycle) {
+        Face f = he.face();
+        cyclefaces[f.getIndex()] = {0.0, 1.0, 0.0};
+      }
+
+      // for (auto face : Y.second.adjacentFaces()) {
+      //   cyclefaces[face.getIndex()] = {1.0, 0.0, 0.0};
+      // }
+
+      // for (auto face : Z.second.adjacentFaces()) {
+      //   cyclefaces[face.getIndex()] = {0.0, 0.0, 1.0};
+      // }
+      auto surf = polyscope::getSurfaceMesh("human_tri");
+      surf->addFaceColorQuantity("cyclefaces", cyclefaces);
+      std::vector<glm::vec3> output_ve;
+      std::vector<std::array<size_t, 2>>   output_ed;
+      int base_count = 0;
+      for (size_t j = 0 ; j < test_cycle.size(); j++) {
+        Halfedge he = test_cycle[j];
+        Vector3 vertdat = nm->geometry->vertexPositions[he.tailVertex()];
+        output_ve.push_back({vertdat.x, vertdat.y, vertdat.z});
+        // output_ve.push_back(nm->geometry .tailVertex().getIndex);
+        // std::cout << j << ", " << (j+1) % 37 << std::endl;
+        output_ed.push_back({base_count + j, base_count +((j+1) % (test_cycle.size()))});
+        // ecolors[he.edge().getIndex()] = {1.0, 0.0, 0.0};
+      }
+      base_count += test_cycle.size();
+      auto curve2 = polyscope::registerCurveNetwork("cyclecurve", output_ve, output_ed);
+      curve2->setColor({1.0,0.0,0.0});
+    }
+
 }
 
 int main(int argc, char **argv) {
