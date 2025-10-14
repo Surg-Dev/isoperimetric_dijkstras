@@ -23,6 +23,6 @@
 using namespace geometrycentral;
 using namespace geometrycentral::surface;
 
-void finalStretch(std::unique_ptr<NeckModel> & nm);
-void findLeaders(std::unique_ptr<NeckModel> & nm);
-void salientLine(std::unique_ptr<NeckModel> & nm);
+void finalStretch(std::unique_ptr<NeckModel> &nm);
+std::vector<vPair> findLeaders(std::unique_ptr<NeckModel> &nm);
+void salientLine(std::unique_ptr<NeckModel> &nm);
