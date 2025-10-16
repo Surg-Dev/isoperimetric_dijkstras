@@ -42,3 +42,5 @@ tags
 *.exe
 *.out
 *.app
+
+results/
