@@ -99,12 +99,67 @@ void myCallback()
 
   }
 
-  ImGui::SliderInt("Cycle Select", &cycle_sel, 0, (nm->salient_cyles_output).size());
+  ImGui::SliderInt("Cycle Select", &cycle_sel, 0, (nm->salient_cycles_output).size());
+
+  if (ImGui::Button("Visualize Area")) {
+    auto selected_cycle = nm->salient_cycles_output[cycle_sel];
+
+    FaceData<bool> visited_f(*(nm->mesh)); // Visited Set of faces
+    std::vector<std::array<double, 3>> cyclefaces(nm->mesh->nFaces(), {0.0, 1.0, 0.0});
+    std::queue<Face> bfs_q;
+
+    std::unordered_set<Face> banned_faces; // Banned faces from enquing in one iteration
+      double area_sum = 0.0;
+      for (auto he : selected_cycle)
+      {
+        // enqueue all the faces induced by one side of the cycle
+        if (visited_f[he.face()] == false)
+        {
+          bfs_q.push(he.face());
+          visited_f[he.face()] = true;
+          cyclefaces[he.face().getIndex()] = {0.0,0.0,1.0};
+        }
+        // ban all the faces induced by the other side (this should prevent all crossings automatically)
+        banned_faces.insert(he.twin().face());
+      }
+
+    while (!bfs_q.empty())
+    {
+      Face f = bfs_q.front();
+      bfs_q.pop();
+      area_sum += nm->geometry->faceAreas[f];
+      for (Face g : f.adjacentFaces())
+      {
+        if (visited_f[g] == false && banned_faces.find(g) == banned_faces.end())
+        {
+          bfs_q.push(g);
+          visited_f[g] = true;
+          cyclefaces[g.getIndex()] = {0.0,0.0,1.0};
+        }
+      }
+    }
+
+    double c_length = 0.0;
+    for (auto he : selected_cycle) {
+      c_length += nm->geometry->edgeLengths[he.edge()];
+    }
+  
+    double total_area = 0.0;
+    for (size_t i = 0; i < nm->mesh->nFaces(); i++)
+    {
+      total_area += nm->geometry->faceAreas[i];
+    }
+    psMesh->addFaceColorQuantity("Cycle Faces", cyclefaces);
+    std::cout << "Total Area: " << total_area << std::endl;
+    std::cout << "Partial Area (Blue): " << area_sum << " Partial Area (Green): " << total_area - area_sum << std::endl;
+    std::cout << "Cycle Length: " << c_length << std::endl;
+    std::cout << "Tightness:" << min(area_sum, total_area - area_sum) / (c_length*c_length) << std::endl;
+  }
 
   // if (ImGui::Button("See Cycle")) {
   //   // std::cout << cycle_sel << std::endl;
 
-  //   auto test_cycle = nm->salient_cyles_output[cycle_sel];
+  //   auto test_cycle = nm->salient_cycles_output[cycle_sel];
 
   //   // for (auto he : test_cycle) {
   //   //   std::cout << "(" << he.tipVertex() << " -> " << he.tailVertex() << ") -> ";
@@ -196,6 +251,7 @@ int main(int argc, char **argv)
   psMesh = polyscope::registerSurfaceMesh(
       polyscope::guessNiceNameFromPath(args::get(inputFilename)),
       nm->geometry->inputVertexPositions, nm->mesh->getFaceVertexList());
+      
   auto perms = polyscopePermutations(*(nm->mesh));
   psMesh->setAllPermutations(perms);
   // psMesh->centerBoundingBox();

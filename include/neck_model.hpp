@@ -111,7 +111,7 @@ class NeckModel{
 
         bool _restricted_search = true;
 
-        std::vector<std::vector<Halfedge>> salient_cyles_output;
+        std::vector<std::vector<Halfedge>> salient_cycles_output;
 
 };
 

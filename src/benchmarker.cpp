@@ -1,5 +1,6 @@
 
 #include "benchmarker.hpp"
+#include "curve_export.hpp"
 
 void finalStretch(std::unique_ptr<NeckModel> &nm)
 {
@@ -62,7 +63,7 @@ void finalStretch(std::unique_ptr<NeckModel> &nm)
     auto he_path = nm->get_he_path(sssp_Y.first, Y.second, Z.second);
     auto cycles = nm->get_cycles_from_path(he_path);
 
-    nm->salient_cyles_output = cycles;
+    nm->salient_cycles_output = cycles;
 
     std::vector<std::array<double, 3>> ecolors(nm->mesh->nEdges(), {0.0, 0.0, 0.0});
 
@@ -214,21 +215,21 @@ void finalStretch(std::unique_ptr<NeckModel> &nm)
     // auto surf = polyscope::getSurfaceMesh("human_tri");
     // surf->addFaceColorQuantity("cyclefaces", cyclefaces);
 
-    std::cout << "Loop" << std::endl;
+    //std::cout << "Loop" << std::endl;
     if (cycles.size() > 7)
     {
       for (int i = 3; i < cycles.size() - 3; i++)
       {
-        // if (tightness[i] < 1.0) {
-        //   continue;
-        // }
+        if (tightness[i] <= .159) {
+          continue;
+        }
         if (tightness[i] > tightness[i + 1] && tightness[i] > tightness[i - 1] && tightness[i] > tightness[i + 2] && tightness[i] > tightness[i - 2])
         {
           if (tightness[i] > tightness[i + 3] && tightness[i] > tightness[i - 3])
             local_max_cycle[i] = true;
-          std::cout << "Cycle #" << i << " is a 5-wide local max" << std::endl;
+          //std::cout << "Cycle #" << i << " is a 5-wide local max" << std::endl;
         }
-        std::cout << i << ", " << tightness[i] << std::endl; 
+        //std::cout << i << ", " << tightness[i] << std::endl; 
       }
     }
 
@@ -291,6 +292,7 @@ void finalStretch(std::unique_ptr<NeckModel> &nm)
     int64_t cand_timing = since(start).count();
     file << cand_timing - last_timing << std::endl;
     last_timing = cand_timing;
+    // break;
   }
   file << "total " << since(start).count() << std::endl;
   std::cout << "Elapsed(ms)=" << since(start).count() << std::endl;
@@ -298,6 +300,8 @@ void finalStretch(std::unique_ptr<NeckModel> &nm)
   curve2->setColor({1.0, 0.0, 0.0});
   // curve2->centerBoundingBox();
   curve2->setPosition(glm::vec3{0.,0.,0.});
+
+  export_curve_network_obj(output_ve, output_ed, "curvenet.obj");
 
   // int base_count_min = 0;
   // for (size_t i = 0; i < cycles.size(); i++) {
