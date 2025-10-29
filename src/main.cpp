@@ -230,6 +230,7 @@ int main(int argc, char **argv)
     return EXIT_FAILURE;
   }
 
+  polyscope::options::allowHeadlessBackends = true;
   // Initialize polyscope
   polyscope::init();
 
@@ -292,7 +293,7 @@ int main(int argc, char **argv)
     view::getCameraFrame(frameLookDir, frameUpDir, frameRightDir);
     float theta = (2 * polyscope::PI) / 8.0;
     polyscope::screenshot();
-    for (int i =0; i < 7; i++){
+/*    for (int i =0; i < 7; i++){
       view::viewMat = glm::translate(view::viewMat, view::viewCenter);
       glm::mat4x4 thetaCamR = glm::rotate(glm::mat4x4(1.0), theta, view::getUpVec());
       view::viewMat = view::viewMat * thetaCamR;
@@ -316,9 +317,8 @@ int main(int argc, char **argv)
       view::viewMat = view::viewMat * thetaCamR;
       view::viewMat = glm::translate(view::viewMat, -view::viewCenter);
       screenshot();
-    }
+    }*/
   }
-
   // polyscope::view::lookAt(pos, glm::vec3{0., 0., 0.});
   // polyscope::screenshot();
 

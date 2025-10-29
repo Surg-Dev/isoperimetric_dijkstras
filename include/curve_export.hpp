@@ -117,7 +117,7 @@ void export_curve_network_obj(
     const std::vector<std::array<size_t, 2>>& edges,
     const std::string& filename,
     float radius = 0.005f,
-    size_t segments = 24)
+    size_t segments = 12)
 {
     std::vector<glm::vec3> all_vertices;
     std::vector<std::array<size_t,3>> all_faces;
@@ -131,7 +131,7 @@ void export_curve_network_obj(
 
     for (auto& v : vertices) {
         glm::vec3 pos(v.x, v.y, v.z);
-        add_sphere(pos, radius, 8, 12, all_vertices, all_faces, vertex_offset);
+        add_sphere(pos, radius, 8, 8, all_vertices, all_faces, vertex_offset);
     }
 
     std::ofstream out(filename);
