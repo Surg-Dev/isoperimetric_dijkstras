@@ -53,6 +53,7 @@ class NeckModel{
         sssp_t st_dijkstras(Vertex s, Vertex t);
         sssp_t sssp(Vertex s);
         std::pair<sssp_t, vPair> sssp_report_furthest(Vertex s);
+        std::pair<sssp_t,Vertex> stgroup_dijkstras(Vertex s, std::unordered_set<Vertex> ts);
 
 
         // Salient Line Algorithm
@@ -60,6 +61,7 @@ class NeckModel{
         // std::vector<Halfedge> find_he_path(sssp_t sssp);
         std::vector<Halfedge> get_he_path(sssp_t sssp, Vertex s, Vertex t);
         std::vector<std::vector<Halfedge>> get_cycles_from_path(std::vector<Halfedge> he_path);
+        std::vector<std::vector<std::vector<Halfedge>>> get_cycles_from_skeleton(std::vector<std::vector<Halfedge>> skeleton);
 
         void do_everything();
 
@@ -112,6 +114,7 @@ class NeckModel{
         bool _restricted_search = true;
 
         std::vector<std::vector<Halfedge>> salient_cycles_output;
+        std::vector<std::vector<std::vector<Halfedge>>> skeleton_cycles_output;
 
 };
 

@@ -1,9 +1,371 @@
 
 #include "benchmarker.hpp"
 #include "curve_export.hpp"
+#include "geometrycentral/surface/mesh_graph_algorithms.h"
+#include "geometrycentral/surface/flip_geodesics.h"
+
+void computeSkeleton(std::unique_ptr<NeckModel> &nm){
+  // srand(time(NULL));
+  int64_t last_timing = 0;
+  std::ofstream file("timing", std::ios::app);
+
+  double total_area = 0.0;
+  for (size_t i = 0; i < nm->mesh->nFaces(); i++)
+  {
+    total_area += nm->geometry->faceAreas[i];
+  }
+
+  std::vector<glm::vec3> output_ve;
+  std::vector<std::array<size_t, 2>> output_ed;
+  int base_count = 0;
+
+  auto start = std::chrono::steady_clock::now();
+
+  ///////////// Pick a Good Root Point
+  // // Pick a random source vertex: X
+  int ridx = std::rand() % nm->mesh->nVertices();
+  Vertex Xc = nm->mesh->vertex(ridx);
+  auto sssp_Xc = nm->sssp_report_furthest(Xc);
+  vPair Yc = sssp_Xc.second;
+  auto sssp_Yc = nm->sssp_report_furthest(Yc.second);
+  vPair Zc = sssp_Yc.second;
+
+  nm->_source = Zc.second;
+  auto candidates = findLeaders(nm,true,25);
+
+  // Find the longest distance from source
+  vPair spair = candidates.back();
+  candidates.pop_back();
+  float maxv = 0.0;
+  vPair tpair;
+  auto todel = candidates.begin();
+  // Get maximum and remove it from the candidate list.
+  for (auto it = candidates.begin(); it < candidates.end(); it++){
+    auto x = *it;
+    if (x.first > maxv){
+      maxv = x.first;
+      tpair = x;
+      todel = it;
+    } 
+  }
+  candidates.erase(todel);
+
+
+  //////////// Build the skeleton
+
+  // We have the sssp of the diameter. We're going to perform the following loop:
+  // Add each node in the path to a set (the skeleton)
+  // For each candidate, compute the shortest path from it to the skeleton
+  // Add all of those nodes into the skeleton, repeat until candidates are exhausted.
+
+  std::unordered_set<Vertex> skeleton;
+  std::vector<std::vector<Halfedge>> skeleton_paths;
+  auto sssp = nm->st_dijkstras(spair.second, tpair.second);
+  auto spine = nm->get_he_path(sssp, spair.second, tpair.second);
+  skeleton_paths.push_back(spine);
+
+  std::cout << "Start: " << spair.second << " End: " << tpair.second << std::endl;
+  Vertex t_spine = spine.at(0).twin().vertex();
+  std::cout << "Inserting: " << t_spine << std::endl;
+  skeleton.insert(t_spine);
+  for (auto he : spine){
+    Vertex v = he.vertex();
+    std::cout << "Inserting: " << v << std::endl;
+    skeleton.insert(v);
+  }
+
+  for (auto candidate : candidates){
+    Vertex s = candidate.second;
+    auto stres = nm->stgroup_dijkstras(s, skeleton);
+    sssp_t st_sssp = stres.first;
+    Vertex t = stres.second;
+
+    auto bone = nm->get_he_path(st_sssp, s,t);
+    skeleton_paths.push_back(bone);
+    Vertex t_bone = bone.at(0).twin().vertex();
+    skeleton.insert(t_bone);
+    for (auto he : bone){
+      Vertex v = he.vertex();
+      skeleton.insert(v);
+    }
+    std::cout << "Inserted Bone" << std::endl;
+  }
+
+
+  ////////// BASIC DISPLAY 
+  // std::cout << "Num Verts: " << skeleton.size() << " Num Bones: " << skeleton_paths.size() << std::endl; 
+
+  std::vector<glm::vec3> pcloud;
+  for (auto x : skeleton)
+  {
+    Vector3 vertdat = nm->geometry->vertexPositions[x.getIndex()];
+    pcloud.push_back({vertdat.x, vertdat.y, vertdat.z});
+  }
+  auto gen_pcloud = polyscope::registerPointCloud("paths", pcloud);
+  auto curve = polyscope::getCurveNetwork("curve");
+
+  // std::vector<std::vector<std::vector<Halfedge>>> cycle_groups;
+  // std::vector<std::array<double, 3>> ecolors(nm->mesh->nEdges(), {0.0, 0.0, 0.0});
+  // for (auto line : skeleton_paths){
+  //   auto cycles = nm->get_cycles_from_path(line);
+  //   for (auto c : cycles) {
+  //     for (auto he : c) {
+  //       Edge e = he.edge();
+  //       ecolors[e.getIndex()] = {1.0, 0., 0.};
+  //     }
+  //   }
+  //   // cycle_groups.push_back(cycles);
+  // }
+  // curve->addEdgeColorQuantity("path", ecolors);
+
+  // std::cout << "endtime: " << since(start).count() << std::endl;
+  //////////
+
+  auto out_cycles = nm->get_cycles_from_skeleton(skeleton_paths);
+  std::cout << "finding all cycles: " << since(start).count() << std::endl;
+  // Build the "tree" of bones
+  // add 
+  // for (auto cycles : out_cycles){
+
+  //   std::vector<float> tightness = std::vector<float>(cycles.size());
+
+  //   // Lazyily compute tightness
+  //   for (size_t i = 0; i < cycles.size(); i++){
+  //     auto selected_cycle = cycles[i];
+  //     FaceData<bool> visited_f(*(nm->mesh)); // Visited Set of faces
+  //     std::vector<std::array<double, 3>> cyclefaces(nm->mesh->nFaces(), {0.0, 1.0, 0.0});
+  //     std::queue<Face> bfs_q;
+
+  //     std::unordered_set<Face> banned_faces; // Banned faces from enquing in one iteration
+  //       double area_sum = 0.0;
+  //       for (auto he : selected_cycle)
+  //       {
+  //         // enqueue all the faces induced by one side of the cycle
+  //         if (visited_f[he.face()] == false)
+  //         {
+  //           bfs_q.push(he.face());
+  //           visited_f[he.face()] = true;
+  //           cyclefaces[he.face().getIndex()] = {0.0,0.0,1.0};
+  //         }
+  //         // ban all the faces induced by the other side (this should prevent all crossings automatically)
+  //         banned_faces.insert(he.twin().face());
+  //       }
+
+  //     while (!bfs_q.empty())
+  //     {
+  //       Face f = bfs_q.front();
+  //       bfs_q.pop();
+  //       area_sum += nm->geometry->faceAreas[f];
+  //       for (Face g : f.adjacentFaces())
+  //       {
+  //         if (visited_f[g] == false && banned_faces.find(g) == banned_faces.end())
+  //         {
+  //           bfs_q.push(g);
+  //           visited_f[g] = true;
+  //           cyclefaces[g.getIndex()] = {0.0,0.0,1.0};
+  //         }
+  //       }
+  //     }
+
+  //     double c_length = 0.0;
+  //     for (auto he : selected_cycle) {
+  //       c_length += nm->geometry->edgeLengths[he.edge()];
+  //     }
+  //     tightness[i] = min(area_sum, total_area - area_sum) / (c_length*c_length);
+  //   }
+  // // std::cout << "finding all tightness: " << since(start).count() << std::endl;
+
+
+  //     std::vector<bool> local_max_cycle(cycles.size());
+  //     if (cycles.size() > 7)
+  //     {
+  //       for (size_t i = 3; i < cycles.size() - 3; i++)
+  //       {
+  //         if (tightness[i] > tightness[i + 1] && tightness[i] > tightness[i - 1] && tightness[i] > tightness[i + 2] && tightness[i] > tightness[i - 2])
+  //         {
+  //           if (tightness[i] > tightness[i + 3] && tightness[i] > tightness[i - 3])
+  //             local_max_cycle[i] = true;
+  //           //std::cout << "Cycle #" << i << " is a 5-wide local max" << std::endl;
+  //         }
+  //         //std::cout << i << ", " << tightness[i] << std::endl; 
+  //       }
+  //     }
+  // // Cycle path display:
+  //   for (size_t i = 0; i < cycles.size(); i++)
+  //     {
+  //         if (!local_max_cycle[i]) {
+  //           continue;
+  //         }
+  //         if (tightness[i] <= .16) {
+  //           continue;
+  //         }
+  //         for (size_t j = 0; j < cycles[i].size(); j++)
+  //         {
+  //           Halfedge he = cycles[i][j];
+  //           Vector3 vertdat = nm->geometry->vertexPositions[he.tailVertex()];
+  //           output_ve.push_back({vertdat.x, vertdat.y, vertdat.z});
+  //           // output_ve.push_back(nm->geometry .tailVertex().getIndex);
+  //           // std::cout << j << ", " << (j+1) % 37 << std::endl;
+  //           output_ed.push_back({base_count + j, base_count + ((j + 1) % (cycles[i].size()))});
+  //           // ecolors[he.edge().getIndex()] = {1.0, 0.0, 0.0};
+  //         }
+  //         base_count += cycles[i].size();
+
+  //     }
+  //   }
+
+
+    for (auto cycles : out_cycles){
+      std::vector<float> cycle_lens;
+      for (auto he_cycle : cycles)
+      {
+        float a = 0.0;
+        for (auto he : he_cycle)
+        {
+          a += nm->geometry->edgeLengths[he.edge()];
+        }
+        cycle_lens.push_back(a);
+      }
+
+      // For each cycle, add each face into the queue
+      // Run BFS, preventing the crossing of a cycle.
+
+      FaceData<bool> visited(*(nm->mesh)); // Visited Set of faces
+      std::queue<Face> bfs_q;
+      std::vector<double> segment_lengths = std::vector<double>(cycles.size() + 1); // The table of constrained areas
+      size_t ind = 0;
+      for (auto he_cycle : cycles)
+      {
+        std::unordered_set<Face> banned_faces; // Banned faces from enquing in one iteration
+        double area_sum = 0.0;
+        for (auto he : he_cycle)
+        {
+          // enqueue all the faces induced by one side of the cycle
+          if (visited[he.face()] == false)
+          {
+            bfs_q.push(he.face());
+            visited[he.face()] = true;
+          }
+          // ban all the faces induced by the other side (this should prevent all crossings automatically)
+          banned_faces.insert(he.twin().face());
+        }
+
+        while (!bfs_q.empty())
+        {
+          Face f = bfs_q.front();
+          bfs_q.pop();
+          area_sum += nm->geometry->faceAreas[f];
+          for (Face g : f.adjacentFaces())
+          {
+            if (visited[g] == false && banned_faces.find(g) == banned_faces.end())
+            {
+              bfs_q.push(g);
+              visited[g] = true;
+            }
+          }
+        }
+        segment_lengths[ind] = area_sum;
+        ind++;
+      }
+
+      // Do last segment:
+
+      {
+        std::unordered_set<Face> banned_faces;
+        double area_sum = 0.0;
+        auto he_cycle = cycles[ind - 1];
+        for (auto he : he_cycle)
+        {
+          auto hetw = he.twin();
+          // enqueue all the faces induced by one side of the cycle
+          if (visited[hetw.face()] == false)
+          {
+            bfs_q.push(hetw.face());
+            visited[hetw.face()] = true;
+          }
+          // ban all the faces induced by the other side (this should prevent all crossings automatically)
+          banned_faces.insert(hetw.twin().face());
+        }
+        while (!bfs_q.empty())
+        {
+          Face f = bfs_q.front();
+          bfs_q.pop();
+          area_sum += nm->geometry->faceAreas[f];
+          for (Face g : f.adjacentFaces())
+          {
+            if (visited[g] == false && banned_faces.find(g) == banned_faces.end())
+            {
+              bfs_q.push(g);
+              visited[g] = true;
+            }
+          }
+        }
+        segment_lengths[ind] = area_sum;
+      }
+  
+      std::vector<double> segment_prefix_sums = std::vector<double>(segment_lengths.size());
+      std::vector<double> tightness = std::vector<double>(cycles.size());
+      segment_prefix_sums[0] = segment_lengths[0];
+
+      for (size_t i = 1; i < segment_lengths.size(); i++)
+      {
+        segment_prefix_sums[i] = segment_prefix_sums[i - 1] + segment_lengths[i];
+      }
+
+      for (size_t i = 0; i < tightness.size(); i++)
+      {
+        tightness[i] = std::min(segment_prefix_sums[i], total_area - segment_prefix_sums[i]) / (cycle_lens[i] * cycle_lens[i]);
+      }
+
+      std::vector<bool> local_max_cycle(cycles.size());
+      if (cycles.size() > 7)
+      {
+        for (size_t i = 3; i < cycles.size() - 3; i++)
+        {
+          if (tightness[i] <= .16) {
+            continue;
+          }
+          if (tightness[i] > tightness[i + 1] && tightness[i] > tightness[i - 1] && tightness[i] > tightness[i + 2] && tightness[i] > tightness[i - 2])
+          {
+            if (tightness[i] > tightness[i + 3] && tightness[i] > tightness[i - 3])
+              local_max_cycle[i] = true;
+          }
+        }
+      }
+
+      // Cycle path display:
+      for (size_t i = 0; i < cycles.size(); i++)
+        {
+            if (!local_max_cycle[i]) {
+              continue;
+            }
+
+            for (size_t j = 0; j < cycles[i].size(); j++)
+            {
+              Halfedge he = cycles[i][j];
+              Vector3 vertdat = nm->geometry->vertexPositions[he.tailVertex()];
+              output_ve.push_back({vertdat.x, vertdat.y, vertdat.z});
+              output_ed.push_back({base_count + j, base_count + ((j + 1) % (cycles[i].size()))});
+            }
+            base_count += cycles[i].size();
+
+        }
+
+    }
+    nm->skeleton_cycles_output = out_cycles;
+    auto curve2 = polyscope::registerCurveNetwork("cyclecurve", output_ve, output_ed);
+    curve2->setColor({1.0, 0.0, 0.0});
+    curve2->setPosition(glm::vec3{0.,0.,0.});
+    // nm->salient_cycles_output = cycles;
+    std::cout << "done: " << since(start).count() << std::endl;
+    ///
+}
 
 void finalStretch(std::unique_ptr<NeckModel> &nm)
 {
+
+  // std::vector<std::vector<Vector3>> polylines;
+
   int64_t last_timing = 0;
   std::ofstream file("timing", std::ios::app);
 
@@ -29,6 +391,13 @@ void finalStretch(std::unique_ptr<NeckModel> &nm)
 
   nm->_source = Zc.second;
   auto candidates = findLeaders(nm);
+
+  // std::vector<Vertex> stripped_candidates;
+
+  // for (auto x : candidates) {
+  //   stripped_candidates.push_back(x.second);
+  // }
+  // computeCandidateMST(nm, stripped_candidates);
 
   for (auto Y : candidates)
   {
@@ -192,33 +561,33 @@ void finalStretch(std::unique_ptr<NeckModel> &nm)
     // }
     // std::cout << std::endl;
 
-    std::vector<bool> local_max_cycle(cycles.size());
-
+    
     // auto test_cycle = cycles[30];
     // std::vector<std::array<double, 3>> cyclefaces(nm->mesh->nFaces(), {0.0, 0.0, 0.0});
-
+    
     // for (auto he : test_cycle)
     // {
-    //   Face f = he.face();
-    //   cyclefaces[f.getIndex()] = {0.0, 1.0, 0.0};
-    // }
-
-    // for (auto face : Y.second.adjacentFaces())
-    // {
-    //   cyclefaces[face.getIndex()] = {1.0, 0.0, 0.0};
-    // }
-
-    // for (auto face : Z.second.adjacentFaces())
-    // {
-    //   cyclefaces[face.getIndex()] = {0.0, 0.0, 1.0};
-    // }
-    // auto surf = polyscope::getSurfaceMesh("human_tri");
-    // surf->addFaceColorQuantity("cyclefaces", cyclefaces);
-
-    //std::cout << "Loop" << std::endl;
+      //   Face f = he.face();
+      //   cyclefaces[f.getIndex()] = {0.0, 1.0, 0.0};
+      // }
+      
+      // for (auto face : Y.second.adjacentFaces())
+      // {
+        //   cyclefaces[face.getIndex()] = {1.0, 0.0, 0.0};
+        // }
+        
+        // for (auto face : Z.second.adjacentFaces())
+        // {
+          //   cyclefaces[face.getIndex()] = {0.0, 0.0, 1.0};
+          // }
+          // auto surf = polyscope::getSurfaceMesh("human_tri");
+          // surf->addFaceColorQuantity("cyclefaces", cyclefaces);
+          
+          //std::cout << "Loop" << std::endl;
+    std::vector<bool> local_max_cycle(cycles.size());
     if (cycles.size() > 7)
     {
-      for (int i = 3; i < cycles.size() - 3; i++)
+      for (size_t i = 3; i < cycles.size() - 3; i++)
       {
         if (tightness[i] <= .159) {
           continue;
@@ -271,6 +640,23 @@ void finalStretch(std::unique_ptr<NeckModel> &nm)
     //     }
     //   }
     // }
+    
+
+    // ///// FLIP GEODESICS
+    // {
+    //   for (size_t i =0; i < cycles.size(); i++) {
+    //     if (local_max_cycle[i]){
+    //         std::unique_ptr<FlipEdgeNetwork> flipNet(new FlipEdgeNetwork(*(nm->mesh), *(nm->geometry), {cycles[i]}));
+    //         flipNet->posGeom = nm->geometry.get();
+    //         flipNet->iterativeShorten();
+    //         std::vector<Vector3> path3D = flipNet->getPathPolyline3D().front();
+    //         polylines.push_back(path3D);
+    //         flipNet.reset();
+    //     }
+    //   }
+    // }
+
+    //////////
 
     for (size_t i = 0; i < cycles.size(); i++)
     {
@@ -303,6 +689,15 @@ void finalStretch(std::unique_ptr<NeckModel> &nm)
 
   export_curve_network_obj(output_ve, output_ed, "curvenet.obj");
 
+  // int i = 100;
+  // for (auto line : polylines){
+  //     auto subcurve = polyscope::registerCurveNetworkLoop(std::to_string(i), line);
+  //     subcurve->setColor({1.0, 0.5, 1.0});
+  //     // curve2->centerBoundingBox();
+  //     subcurve->setPosition(glm::vec3{0.,0.,0.});
+  //     i++;
+  // }
+
   // int base_count_min = 0;
   // for (size_t i = 0; i < cycles.size(); i++) {
   //   if (local_min_cycle[i]) {
@@ -330,7 +725,7 @@ void finalStretch(std::unique_ptr<NeckModel> &nm)
   // curve->addEdgeColorQuantity("path", ecolors);
 }
 
-std::vector<vPair> findLeaders(std::unique_ptr<NeckModel> &nm)
+std::vector<vPair> findLeaders(std::unique_ptr<NeckModel> &nm, bool trim, int r)
 {
   auto path = nm->sssp(nm->_source);
   auto prev = path.first;
@@ -370,42 +765,43 @@ std::vector<vPair> findLeaders(std::unique_ptr<NeckModel> &nm)
   // }
 
   // Remove All Candidates within r-hops
-  int r = 20;
-  typedef std::pair<int, Vertex> VHop;
-  for (size_t i = 0; i < candidates.size(); i++)
-  {
-    std::queue<VHop> q;
-    std::unordered_set<Vertex> visited;
-    Vertex s = candidates[i].second;
-    q.push({0, s});
-    visited.insert(s);
-
-    while (!q.empty())
+  if (trim){
+    typedef std::pair<int, Vertex> VHop;
+    for (size_t i = 0; i < candidates.size(); i++)
     {
-      auto hop = q.front().first;
-      auto curr = q.front().second;
-      q.pop();
-      if (hop + 1 == r)
-      {
-        continue;
-      }
-      auto it = candidates.begin();
-      for (; it < candidates.end(); it++)
-      {
-        if ((*it).second == curr && curr != s)
-        {
-          candidates.erase(it);
-          break;
-        }
-      }
+      std::queue<VHop> q;
+      std::unordered_set<Vertex> visited;
+      Vertex s = candidates[i].second;
+      q.push({0, s});
+      visited.insert(s);
 
-      for (Vertex v : curr.adjacentVertices())
+      while (!q.empty())
       {
-        int rp = hop + 1;
-        if (visited.find(v) == visited.end())
+        auto hop = q.front().first;
+        auto curr = q.front().second;
+        q.pop();
+        if (hop + 1 == r)
         {
-          visited.insert(v);
-          q.push({rp, v});
+          continue;
+        }
+        auto it = candidates.begin();
+        for (; it < candidates.end(); it++)
+        {
+          if ((*it).second == curr && curr != s)
+          {
+            candidates.erase(it);
+            break;
+          }
+        }
+
+        for (Vertex v : curr.adjacentVertices())
+        {
+          int rp = hop + 1;
+          if (visited.find(v) == visited.end())
+          {
+            visited.insert(v);
+            q.push({rp, v});
+          }
         }
       }
     }
@@ -599,3 +995,27 @@ void salientLine(std::unique_ptr<NeckModel> &nm)
   std::cout << he_cycle.size() << std::endl;
   // Recurse above and below
 }
+
+void computeCandidateMST(std::unique_ptr<NeckModel> &nm, std::vector<Vertex> candidates){
+  // Compute the MST of nm
+  auto edgedat = surface::spanningTreeBetweenVertices(*(nm->geometry), candidates);
+
+  std::vector<glm::vec3> nodes;
+
+  for (auto e : nm->mesh->edges()) {
+    if (edgedat[e]){
+      Vector3 vertdat = nm->geometry->vertexPositions[e.firstVertex()];
+      nodes.push_back({vertdat.x, vertdat.y, vertdat.z});
+      vertdat = nm->geometry->vertexPositions[e.secondVertex()];
+      nodes.push_back({vertdat.x, vertdat.y, vertdat.z});
+    }
+  }
+  polyscope::registerCurveNetworkSegments("mst tree", nodes);
+
+  // Root (orient) the tree from the first candidate
+
+  // Trim off all branches which aren't paths to a candidate
+
+  // Return the set of edges 
+}
+

@@ -24,5 +24,7 @@ using namespace geometrycentral;
 using namespace geometrycentral::surface;
 
 void finalStretch(std::unique_ptr<NeckModel> &nm);
-std::vector<vPair> findLeaders(std::unique_ptr<NeckModel> &nm);
+std::vector<vPair> findLeaders(std::unique_ptr<NeckModel> &nm, bool trim=true, int r = 15);
 void salientLine(std::unique_ptr<NeckModel> &nm);
+void computeCandidateMST(std::unique_ptr<NeckModel> &nm, std::vector<Vertex> candidates);
+void computeSkeleton(std::unique_ptr<NeckModel> &nm);

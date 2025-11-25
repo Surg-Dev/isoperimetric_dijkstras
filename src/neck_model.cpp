@@ -620,6 +620,38 @@ sssp_t NeckModel::st_dijkstras(Vertex s, Vertex t){
   return std::make_pair(prev, dists);
 }
 
+std::pair<sssp_t,Vertex> NeckModel::stgroup_dijkstras(Vertex s, std::unordered_set<Vertex> ts){
+  VertexData<Halfedge> prev(*mesh);
+  VertexData<float> dists(*mesh);
+  std::priority_queue<vPair, std::vector<vPair>, std::greater<vPair>> pq;
+  Vertex t;
+  pq.push(std::make_pair(0.0, s));
+  for (Vertex v : mesh->vertices()){
+    dists[v] = std::numeric_limits<float>::infinity();
+  }
+  dists[s] = 0.0;
+  while (!pq.empty()){
+    auto curr = pq.top().second;
+    auto target = ts.find(curr);
+    if (target != ts.end()){
+      t = *target;
+      break;
+    }
+    pq.pop();
+
+    for (Halfedge he : curr.outgoingHalfedges()){
+      Vertex v = he.twin().vertex();
+      float alt = dists[curr] + geometry->edgeLengths[he.edge()];
+      if (alt < dists[v]){
+        dists[v] = alt;
+        prev[v] = he;
+        pq.push(std::make_pair(alt, v));
+      }
+    }
+  }
+  return std::make_pair(std::make_pair(prev, dists), t);
+}
+
 sssp_t NeckModel::sssp(Vertex s){
   VertexData<Halfedge> prev(*mesh);
   VertexData<float> dists(*mesh);
@@ -916,5 +948,173 @@ std::vector<std::vector<Halfedge>> NeckModel::get_cycles_from_path(std::vector<H
     } // end for;
     std::reverse(cycles.begin(), cycles.end());
     return cycles;
+} 
+
+std::vector<std::vector<std::vector<Halfedge>>> NeckModel::get_cycles_from_skeleton(std::vector<std::vector<Halfedge>> skeleton){
+  
+  // make a banned set
+  // add all nodes on the o.g. path to it
+  // std::set<Vertex> banned_crossing;
+  // for (auto he_path : skeleton){
+  //   Vertex s = he_path.at(0).tailVertex();
+  //   for (auto he : he_path){
+  //     banned_crossing.insert(he.tipVertex());
+  //   }
+  //   banned_crossing.insert(s);
+  // }
+  std::vector<std::vector<std::vector<Halfedge>>> out_cycles;
+  
+
+  for (auto he_path : skeleton){
+    std::vector<std::vector<Halfedge>> cycles;
+    // First and last vertices of the path
+    Vertex s = he_path.at(0).tailVertex();
+    Vertex t = he_path.at(he_path.size() - 1).tipVertex();
+
+    std::set<Vertex> banned_crossing;
+    // Vertex s = he_path.at(0).tailVertex();
+    for (auto he : he_path){
+      banned_crossing.insert(he.tipVertex());
+    }
+    banned_crossing.insert(s);
+    // Structure which holds all the cycles
+    
+
+    // For each node on the path, find it's cycle
+    // TODO: This is lazy, we can produce recursion instead.
+    for (size_t index = 0; index < he_path.size() - 1 ; index ++){
+        size_t midpt = index;
+        Halfedge he_mid = he_path[midpt];
+        Halfedge he_pred = he_path[midpt+1];
+
+        Vertex a = he_mid.tailVertex();
+
+        bool mid_first = false;
+        std::set<Halfedge> left, right;
+        int side = 0;
+        for (Halfedge he : a.outgoingHalfedges()){
+          if (he == he_mid || he == he_pred.twin()){
+            if (side == 0 && he == he_mid) {
+              mid_first = true;
+            }
+            side = !side;
+            // std::cout << side << "and: " << he << he_mid << he_pred.twin() << std::endl;
+            continue;
+          }
+
+          // We guess that we're on the left side first.
+          // This is confirmed if the first he we encounter is he_mid.
+          // if not, right is left.
+          if (side){
+            right.insert(he);
+          } else {
+            left.insert(he);
+          }
+        }
+        // std::cout << "wow" << std::endl;
+        // run st dijkstra's but ban any node on the path, and return halfedges on the side you started with
+
+
+
+        std::set<Halfedge> query_side;
+
+        // This, then, always picks "right".
+        if (mid_first){
+          query_side = left;
+        } else {
+          query_side = right;
+        }
+        // pick a side, enqueue all outgoing verts
+        VertexData<Halfedge> prev_c(*mesh);
+        VertexData<float> dists_c(*mesh, std::numeric_limits<float>::infinity());
+        std::priority_queue<vPair, std::vector<vPair>, std::greater<vPair>> pq;
+        for (auto he : query_side){
+          float len = geometry->edgeLengths[he.edge()];
+          Vertex vert = he.tipVertex();
+          pq.push(std::make_pair(len, vert));
+          dists_c[vert] = len;
+        }
+        // run dijksta's until it reaches the same vertex again, banning the same side's twin hedges.
+        while (!pq.empty()){
+          auto curr = pq.top().second;
+          if (curr == a){
+            break;
+          }
+          pq.pop();
+
+          for (Halfedge he : curr.outgoingHalfedges()){
+            // don't allow instant return.
+            if (query_side.find(he.twin()) != query_side.end()){
+              continue;
+            }
+            Vertex v = he.twin().vertex();
+            if (v != a && banned_crossing.find(v) != banned_crossing.end()){
+              continue; 
+            }
+            float newdist = dists_c[curr] + geometry->edgeLengths[he.edge()];
+
+            if (newdist < dists_c[v]) {
+              dists_c[v] = newdist;
+              prev_c[v] = he;
+              pq.push(std::make_pair(newdist, v));
+            }
+          }
+        } //end while
+
+        Vertex cur = a;
+        std::vector<Halfedge> he_cycle;
+        while (true){
+          Halfedge he = prev_c[cur];
+          if (he == Halfedge()){
+            break;
+          }
+          he_cycle.push_back(he);
+          cur = he.tailVertex();
+        }
+        auto fin_edge = get_edge(a, cur);
+
+        // We chased backwards, so if the final edge's tip is the start, the cycle is overall in reverse, so we add the twin
+        if (fin_edge.halfedge().tipVertex() == a){
+          he_cycle.push_back(fin_edge.halfedge().twin());
+        } else {
+          he_cycle.push_back(fin_edge.halfedge());
+        }
+
+        // for (auto he : a.outgoingHalfedges()){
+
+        // }
+
+
+
+        // Face path_face_a = he_mid.face();
+        // Face path_face_b = he_mid.twin().face();
+        // // Face path_pred_face_a = he_pred.face();
+        // // Face path_pred_face_b = he_pred.twin().face();
+        // Face first_face_a = he_cycle[0].face();
+        // Face first_face_b = he_cycle[0].twin().face();
+        // Face last_face_a = he_cycle[he_cycle.size()-1].face();
+        // Face last_face_b = he_cycle[he_cycle.size()-1].face();
+
+        // bool already_correct = false; 
+
+        // if (first_face_b == path_face_a || first_face_b == path_face_b || last_face_b == path_face_a || last_face_b == path_face_b) {
+        //   already_correct = true;
+        // }
+
+
+        // // If the first or last edge in the cycle corresponds with the same face of the outgoing path, reverse the cycle.
+        // if (first_face != path_pred_face_a && first_face != path_pred_face_b && last_face != path_pred_face_a && last_face != path_pred_face_b) {
+        //   // reorient the cycle.
+        //   for (size_t i = 0; i < he_cycle.size(); i++) {
+        //     he_cycle[i] = he_cycle[i].twin();
+        //   }
+        // }
+
+        cycles.push_back(he_cycle);
+      } // end for;
+      std::reverse(cycles.begin(), cycles.end());
+      out_cycles.push_back(cycles);
+    }
+    return out_cycles;
 } 
 

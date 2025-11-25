@@ -52,6 +52,7 @@ int cut_index = 0;
 
 int cycles_made = 0;
 int cycle_sel = 0;
+int bone_sel = 0;
 
 float gpos[3] = {0., 0., 0.};
 float gla[3] = {0., 0., 0.};
@@ -99,6 +100,10 @@ void myCallback()
 
   }
 
+  ImGui::SliderInt("Bone Select", &bone_sel, 0, (nm->skeleton_cycles_output).size());
+  if (ImGui::Button("Update Bone Select")) {
+    nm->salient_cycles_output = nm->skeleton_cycles_output[bone_sel];
+  }
   ImGui::SliderInt("Cycle Select", &cycle_sel, 0, (nm->salient_cycles_output).size());
 
   if (ImGui::Button("Visualize Area")) {
@@ -156,47 +161,47 @@ void myCallback()
     std::cout << "Tightness:" << min(area_sum, total_area - area_sum) / (c_length*c_length) << std::endl;
   }
 
-  // if (ImGui::Button("See Cycle")) {
-  //   // std::cout << cycle_sel << std::endl;
+  if (ImGui::Button("See Cycle")) {
+    // std::cout << cycle_sel << std::endl;
 
-  //   auto test_cycle = nm->salient_cycles_output[cycle_sel];
+    auto test_cycle = nm->salient_cycles_output[cycle_sel];
 
-  //   // for (auto he : test_cycle) {
-  //   //   std::cout << "(" << he.tipVertex() << " -> " << he.tailVertex() << ") -> ";
-  //   // }
-  //   // std::cout << std::endl;
-  //   std::vector<std::array<double, 3>> cyclefaces(nm->mesh->nFaces(), {0.0,0.0,0.0});
+    // for (auto he : test_cycle) {
+    //   std::cout << "(" << he.tipVertex() << " -> " << he.tailVertex() << ") -> ";
+    // }
+    // std::cout << std::endl;
+    std::vector<std::array<double, 3>> cyclefaces(nm->mesh->nFaces(), {0.0,0.0,0.0});
 
-  //   for (auto he : test_cycle) {
-  //     Face f = he.face();
-  //     cyclefaces[f.getIndex()] = {0.0, 1.0, 0.0};
-  //   }
+    for (auto he : test_cycle) {
+      Face f = he.face();
+      cyclefaces[f.getIndex()] = {0.0, 1.0, 0.0};
+    }
 
-  //   // for (auto face : Y.second.adjacentFaces()) {
-  //   //   cyclefaces[face.getIndex()] = {1.0, 0.0, 0.0};
-  //   // }
+    // for (auto face : Y.second.adjacentFaces()) {
+    //   cyclefaces[face.getIndex()] = {1.0, 0.0, 0.0};
+    // }
 
-  //   // for (auto face : Z.second.adjacentFaces()) {
-  //   //   cyclefaces[face.getIndex()] = {0.0, 0.0, 1.0};
-  //   // }
-  //   auto surf = polyscope::getSurfaceMesh("human_tri");
-  //   surf->addFaceColorQuantity("cyclefaces", cyclefaces);
-  //   std::vector<glm::vec3> output_ve;
-  //   std::vector<std::array<size_t, 2>>   output_ed;
-  //   int base_count = 0;
-  //   for (size_t j = 0 ; j < test_cycle.size(); j++) {
-  //     Halfedge he = test_cycle[j];
-  //     Vector3 vertdat = nm->geometry->vertexPositions[he.tailVertex()];
-  //     output_ve.push_back({vertdat.x, vertdat.y, vertdat.z});
-  //     // output_ve.push_back(nm->geometry .tailVertex().getIndex);
-  //     // std::cout << j << ", " << (j+1) % 37 << std::endl;
-  //     output_ed.push_back({base_count + j, base_count +((j+1) % (test_cycle.size()))});
-  //     // ecolors[he.edge().getIndex()] = {1.0, 0.0, 0.0};
-  //   }
-  //   base_count += test_cycle.size();
-  //   auto curve2 = polyscope::registerCurveNetwork("cyclecurve", output_ve, output_ed);
-  //   curve2->setColor({1.0,0.0,0.0});
-  // }
+    // for (auto face : Z.second.adjacentFaces()) {
+    //   cyclefaces[face.getIndex()] = {0.0, 0.0, 1.0};
+    // }
+    auto surf = polyscope::getSurfaceMesh("human_tri");
+    surf->addFaceColorQuantity("cyclefaces", cyclefaces);
+    std::vector<glm::vec3> output_ve;
+    std::vector<std::array<size_t, 2>>   output_ed;
+    int base_count = 0;
+    for (size_t j = 0 ; j < test_cycle.size(); j++) {
+      Halfedge he = test_cycle[j];
+      Vector3 vertdat = nm->geometry->vertexPositions[he.tailVertex()];
+      output_ve.push_back({vertdat.x, vertdat.y, vertdat.z});
+      // output_ve.push_back(nm->geometry .tailVertex().getIndex);
+      // std::cout << j << ", " << (j+1) % 37 << std::endl;
+      output_ed.push_back({base_count + j, base_count +((j+1) % (test_cycle.size()))});
+      // ecolors[he.edge().getIndex()] = {1.0, 0.0, 0.0};
+    }
+    base_count += test_cycle.size();
+    auto curve2 = polyscope::registerCurveNetwork("cyclecurve", output_ve, output_ed);
+    curve2->setColor({1.0,0.0,0.0});
+  }
 }
 
 int main(int argc, char **argv)
@@ -275,7 +280,10 @@ int main(int argc, char **argv)
   curve->setEnabled(false);
 
   std::cout << "Running Algo" << std::endl;
-  finalStretch(nm);
+  nm->_source = nm->mesh->vertex(12756);
+  // finalStretch(nm);
+  // findLeaders(nm, false);
+  computeSkeleton(nm);
 
   std::cout << "Taking Photos" << std::endl;
   polyscope::options::groundPlaneMode = polyscope::GroundPlaneMode::None;
@@ -289,10 +297,14 @@ int main(int argc, char **argv)
     view::resetCameraToHomeView();
 
     // Rotate 7 times along yvec
-    glm::vec3 frameLookDir, frameUpDir, frameRightDir;
-    view::getCameraFrame(frameLookDir, frameUpDir, frameRightDir);
-    float theta = (2 * polyscope::PI) / 8.0;
-    polyscope::screenshot();
+    // glm::vec3 frameLookDir, frameUpDir, frameRightDir;
+    // view::getCameraFrame(frameLookDir, frameUpDir, frameRightDir);
+    // float theta = -(2 * polyscope::PI) / 8.0;
+    //   view::viewMat = glm::translate(view::viewMat, view::viewCenter);
+    //   glm::mat4x4 thetaCamR = glm::rotate(glm::mat4x4(1.0), theta, view::getUpVec());
+    //   view::viewMat = view::viewMat * thetaCamR;
+    //   view::viewMat = glm::translate(view::viewMat, -view::viewCenter);
+    // polyscope::screenshot();
 /*    for (int i =0; i < 7; i++){
       view::viewMat = glm::translate(view::viewMat, view::viewCenter);
       glm::mat4x4 thetaCamR = glm::rotate(glm::mat4x4(1.0), theta, view::getUpVec());
