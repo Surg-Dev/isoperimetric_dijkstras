@@ -44,6 +44,8 @@ std::set<Face> best_cut;
 // Polyscope visualization handle, to quickly add data to the surface
 polyscope::SurfaceMesh *psMesh = NULL;
 
+std::string mesh_name;
+
 // Some algorithm parameters
 int param1 = 10;
 int cutidxs = 0;
@@ -100,11 +102,11 @@ void myCallback()
 
   }
 
-  ImGui::SliderInt("Bone Select", &bone_sel, 0, (nm->skeleton_cycles_output).size());
+  ImGui::SliderInt("Bone Select", &bone_sel, 0, (nm->skeleton_cycles_output).size()-1);
   if (ImGui::Button("Update Bone Select")) {
     nm->salient_cycles_output = nm->skeleton_cycles_output[bone_sel];
   }
-  ImGui::SliderInt("Cycle Select", &cycle_sel, 0, (nm->salient_cycles_output).size());
+  ImGui::SliderInt("Cycle Select", &cycle_sel, 0, (nm->salient_cycles_output).size()-1);
 
   if (ImGui::Button("Visualize Area")) {
     auto selected_cycle = nm->salient_cycles_output[cycle_sel];
@@ -184,7 +186,7 @@ void myCallback()
     // for (auto face : Z.second.adjacentFaces()) {
     //   cyclefaces[face.getIndex()] = {0.0, 0.0, 1.0};
     // }
-    auto surf = polyscope::getSurfaceMesh("human_tri");
+    auto surf = polyscope::getSurfaceMesh(mesh_name);
     surf->addFaceColorQuantity("cyclefaces", cyclefaces);
     std::vector<glm::vec3> output_ve;
     std::vector<std::array<size_t, 2>>   output_ed;
@@ -254,8 +256,8 @@ int main(int argc, char **argv)
   // nm->_source = nm->mesh->vertex(4788);
 
   // teapot tip: 2696
-  psMesh = polyscope::registerSurfaceMesh(
-      polyscope::guessNiceNameFromPath(args::get(inputFilename)),
+  mesh_name = polyscope::guessNiceNameFromPath(args::get(inputFilename));
+  psMesh = polyscope::registerSurfaceMesh(mesh_name,
       nm->geometry->inputVertexPositions, nm->mesh->getFaceVertexList());
       
   auto perms = polyscopePermutations(*(nm->mesh));
@@ -295,6 +297,7 @@ int main(int argc, char **argv)
     
     // Make Polyscope compute + set the best home view
     view::resetCameraToHomeView();
+    polyscope::screenshot();
 
     // Rotate 7 times along yvec
     // glm::vec3 frameLookDir, frameUpDir, frameRightDir;
